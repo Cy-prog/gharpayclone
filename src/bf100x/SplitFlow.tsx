@@ -1,8 +1,6 @@
-// The 100x funnel squeezed into 40% of the screen, so WhatsApp can live in the
-// other 60%. One screen, nothing to scroll except the questions themselves.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Activity, ArrowLeft, ArrowRight, BellRing, ListChecks, Menu, PhoneCall, ShieldAlert, UserCheck } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, BellRing, ListChecks, Menu, PhoneCall, ShieldAlert, UserCheck, CheckCircle2, ChevronRight, Building2, Calendar, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +21,12 @@ import { ClosingDesk } from "./ClosingDesk";
 import { ContactActions } from "@/components/common/ContactActions";
 import { CloseCommitButton } from "@/components/commitments/CloseCommitButton";
 import { canonicalCustomerId } from "@/lib/canonical/customer-id";
+import { useOperationalStore } from "@/lib/operational-engine/store";
+import { updateBookingFlowStage } from "@/lib/operational-engine/actions";
+import { computeNextBestAction } from "@/lib/operational-engine/next-best-action";
+import { CustomerAuditHistory } from "@/components/common/CustomerAuditHistory";
+import type { PipelineStage } from "@/lib/operational-engine/types";
+import type { FlowLead } from "@/bookingflow/types";
 
 type Pane = "WORK" | "CAPTURED" | "MATCH" | "LABELS" | "CLOSING" | "QUEUE" | "DRAFTS";
 
@@ -68,7 +72,51 @@ export interface SplitFocus { name?: string; phone?: string; key?: string; canon
 
 
 export function SplitFlow({ embedded = false, focus, panelOnly = false }: { embedded?: boolean; focus?: SplitFocus; panelOnly?: boolean }) {
-  const { leads, me, mode, setMode, claim, setNext, logActivity, escalate, batches, buildBatch, closeBatch, reopenBatch } = useBookingFlow();
+  const { leads: legacyLeads, me, mode, setMode, claim, setNext, logActivity, escalate, batches, buildBatch, closeBatch, reopenBatch } = useBookingFlow();
+  const opStore = useOperationalStore();
+  const opLeads = opStore.leads;
+
+  // Convert real operational leads into FlowLead format
+  const leads: FlowLead[] = useMemo(() => {
+    if (!opLeads || opLeads.length === 0) return legacyLeads;
+    return opLeads.map((ol) => ({
+      id: ol.id,
+      canonicalId: ol.id,
+      name: ol.name,
+      phone: ol.phone,
+      waAccount: "Gharpayy Sales 01",
+      lastMessage: ol.lastMessagePreview || "Inquired for PG accommodation",
+      lastActivityAt: ol.lastOperatorActionAt,
+      unread: 0,
+      labels: [ol.stage, ol.sharingType, ol.priority],
+      stage: ol.stage === "BOOKED" ? "CLOSED" : ol.stage === "CLOSING" ? "PAYMENT" : ol.stage === "TOUR_SCHEDULED" ? "TOUR" : ol.stage === "MATCH" ? "MATCH" : "WHERE",
+      owner: ol.currentHandlerName || ol.currentOwner || "Rahul",
+      nextAction: opStore.getLeadNextAction(ol.id)?.kind || "Move to Booking Flow",
+      nextActionAt: opStore.getLeadNextAction(ol.id)?.dueAt || new Date().toISOString(),
+      q: {
+        location: ol.locationText,
+        budget: String(ol.budget),
+        roomType: ol.sharingType,
+        moveInDate: ol.moveInDate,
+      },
+      f: {
+        area: ol.locationText,
+        budget: String(ol.budget),
+        roomType: ol.sharingType,
+        moveIn: ol.moveInDate,
+        property: ol.selectedPropertyName || "",
+        propertyRoom: ol.selectedPropertyId || "",
+      },
+      lastEvidenceAt: ol.lastOperatorActionAt,
+      events: opStore.getLeadAuditLogs(ol.id).map((a) => ({
+        at: a.at,
+        actor: a.actor,
+        label: a.action,
+        detail: a.reason || undefined,
+      })),
+    }));
+  }, [opLeads, legacyLeads, opStore]);
+
   const [widthPct, setWidthPct] = useState(40);
   const [dragging, setDragging] = useState(false);
   const [closeNote, setCloseNote] = useState("");
@@ -114,6 +162,8 @@ export function SplitFlow({ embedded = false, focus, panelOnly = false }: { embe
   }, [leads, mounted]);
 
   const lead = leads.find((l) => l.id === leadId) ?? queue[0];
+  const currentOpLead = opStore.getLead(lead?.id || "");
+  const currentNba = currentOpLead ? computeNextBestAction(currentOpLead) : null;
 
   useEffect(() => {
     if (lead) setScreenId(currentScreen(lead.f ?? {}).id);
@@ -228,34 +278,87 @@ export function SplitFlow({ embedded = false, focus, panelOnly = false }: { embe
 
       {/* Customer line + the five answers, compact */}
       {lead && (
-        <div className="shrink-0 border-b px-2 py-1">
+        <div className="shrink-0 border-b px-2 py-1 space-y-1.5">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{lead.name} <span className="text-[11px] font-normal text-muted-foreground">{lead.phone}</span></p>
+              <div className="flex items-center gap-2">
+                <p className="truncate text-sm font-semibold">{lead.name} <span className="text-[11px] font-normal text-muted-foreground">{lead.phone}</span></p>
+                {currentOpLead && (
+                  <Badge variant="outline" className="text-[10px] uppercase font-bold text-primary">
+                    {currentOpLead.stage}
+                  </Badge>
+                )}
+              </div>
               <p className="truncate text-[10px] text-muted-foreground">“{lead.lastMessage}”</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={nextCustomer}>Next<ArrowRight className="ml-1 h-3 w-3" /></Button>
             </div>
           </div>
-          {mounted && h && (
-            <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
-              <Badge variant="outline" className="text-[10px]">{h.stepNo}. {h.complete ? "Checked in" : h.step?.title}</Badge>
-              <Badge variant={lead.owner ? "secondary" : "destructive"} className="text-[10px]">{lead.owner ?? "no owner"}</Badge>
-              <Badge variant="outline" className="text-[10px]">waiting on {h.waitingOn}</Badge>
-              <Badge variant={lead.nextAction ? "outline" : "destructive"} className="text-[10px]">{lead.nextAction ?? "no next step"}</Badge>
-              <Badge variant={lead.nextActionAt && h.sla !== "LATE" ? "outline" : "destructive"} className="text-[10px]">
-                {lead.nextActionAt ? (h.sla === "LATE" ? `late ${fmtMins(h.minutesLate)}` : new Date(lead.nextActionAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) : "no deadline"}
-              </Badge>
+
+          {/* Sticky Customer Context Strip */}
+          {currentOpLead && (
+            <div className="grid grid-cols-4 gap-1 rounded bg-muted/40 p-1 text-[10px]">
+              <div><span className="text-muted-foreground">Area: </span><span className="font-medium">{currentOpLead.locationText || "—"}</span></div>
+              <div><span className="text-muted-foreground">Budget: </span><span className="font-medium">₹{(currentOpLead.budget / 1000).toFixed(0)}k</span></div>
+              <div><span className="text-muted-foreground">Sharing: </span><span className="font-medium">{currentOpLead.sharingType}</span></div>
+              <div><span className="text-muted-foreground">Move-in: </span><span className="font-medium">{currentOpLead.moveInDate || "—"}</span></div>
             </div>
           )}
+
+          {/* Operational Next Best Action Banner */}
+          {currentNba && (
+            <div className="rounded border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] space-y-0.5">
+              <div className="flex items-center justify-between font-semibold text-primary">
+                <span>NEXT ACTION: {currentNba.kind}</span>
+                <span className="text-[10px] font-normal text-muted-foreground">
+                  Due: {new Date(currentNba.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · Owner: {currentNba.owner}
+                </span>
+              </div>
+              <div className="text-[10px] text-muted-foreground leading-tight">{currentNba.reason}</div>
+            </div>
+          )}
+
+          {/* 1-Click Inline Stage Progression */}
+          {currentOpLead && (
+            <div className="flex items-center gap-1 overflow-x-auto pt-0.5">
+              {[
+                { stage: "WHERE", label: "1. Where & When" },
+                { stage: "BUDGET", label: "2. Budget & Sharing" },
+                { stage: "MATCH", label: "3. Property Match" },
+                { stage: "TOUR_SCHEDULED", label: "4. Schedule Tour" },
+                { stage: "CLOSING", label: "5. Closing Desk" },
+              ].map((s) => {
+                const isCurrent = currentOpLead.stage === s.stage;
+                return (
+                  <button
+                    key={s.stage}
+                    type="button"
+                    onClick={async () => {
+                      await updateBookingFlowStage(currentOpLead.id, { stage: s.stage as PipelineStage });
+                      toast.success(`Moved to ${s.label}`);
+                    }}
+                    className={cn(
+                      "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium transition-colors",
+                      isCurrent
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Copy the number, dial it, or open the WhatsApp chat — always labelled */}
-          <div className="mt-1 flex flex-wrap items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <ContactActions phone={lead.phone} name={lead.name} />
-            <Button size="sm" className="h-7 px-2 text-[10px]" onClick={() => setActivityOpen(true)}>
+            <Button size="sm" className="h-6 px-2 text-[10px]" onClick={() => setActivityOpen(true)}>
               <Activity className="mr-1 h-3 w-3" />Log activity
             </Button>
-            <Button size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={() => {
+            <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => {
               const at = new Date(Date.now() + 2 * 3_600_000).toISOString();
               setNext(lead.id, "Follow up on decision", at);
               setNextAction("Follow up on decision");
@@ -376,15 +479,100 @@ export function SplitFlow({ embedded = false, focus, panelOnly = false }: { embe
         ) : !lead ? (
           <p className="pt-10 text-center text-sm text-muted-foreground">Nothing left in the queue — every customer is closed or checked in.</p>
         ) : pane === "WORK" ? (
-          <ScreenPanel
-            lead={lead}
-            screen={screen}
-            expert={mode === "EXPERT"}
-            canPrev={idx > 0}
-            canNext={idx < SCREENS.length - 1}
-            onPrev={() => step(-1)}
-            onNext={() => step(1)}
-          />
+          <div className="space-y-4">
+            {/* Quick Qualification & Progression Bar */}
+            {currentOpLead && (
+              <div className="rounded-lg border bg-card p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold">Fast Qualification (Zero-Scroll)</span>
+                  <Badge variant="outline" className="text-[10px] font-bold text-primary">
+                    Stage: {currentOpLead.stage}
+                  </Badge>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground block mb-0.5">Area Preference</label>
+                    <div className="flex flex-wrap gap-1">
+                      {["Koramangala", "HSR Layout", "Bellandur", "Indiranagar"].map((area) => (
+                        <button
+                          key={area}
+                          type="button"
+                          onClick={async () => {
+                            await updateBookingFlowStage(currentOpLead.id, { locationText: area });
+                            toast.success(`Location set to ${area}`);
+                          }}
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-[10px] border transition-colors",
+                            currentOpLead.locationText === area
+                              ? "border-primary bg-primary/15 font-semibold text-primary"
+                              : "border-border hover:bg-muted"
+                          )}
+                        >
+                          {area}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-muted-foreground block mb-0.5">Sharing Type</label>
+                    <div className="flex flex-wrap gap-1">
+                      {["Single", "Double", "Triple"].map((sh) => (
+                        <button
+                          key={sh}
+                          type="button"
+                          onClick={async () => {
+                            await updateBookingFlowStage(currentOpLead.id, { sharingType: sh as any });
+                            toast.success(`Sharing set to ${sh}`);
+                          }}
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-[10px] border transition-colors",
+                            currentOpLead.sharingType === sh
+                              ? "border-primary bg-primary/15 font-semibold text-primary"
+                              : "border-border hover:bg-muted"
+                          )}
+                        >
+                          {sh}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 border-t">
+                  <span className="text-[10px] text-muted-foreground">Ready for closing?</span>
+                  <Button
+                    size="sm"
+                    className="h-6 text-[10px] font-semibold"
+                    onClick={async () => {
+                      await updateBookingFlowStage(currentOpLead.id, { stage: "CLOSING" });
+                      setPane("CLOSING");
+                      toast.success(`${currentOpLead.name} moved to Closing Desk!`);
+                    }}
+                  >
+                    Move to Closing Desk →
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <ScreenPanel
+              lead={lead}
+              screen={screen}
+              expert={mode === "EXPERT"}
+              canPrev={idx > 0}
+              canNext={idx < SCREENS.length - 1}
+              onPrev={() => step(-1)}
+              onNext={() => step(1)}
+            />
+
+            {currentOpLead && (
+              <div className="border-t pt-3">
+                <CustomerAuditHistory leadId={currentOpLead.id} />
+              </div>
+            )}
+          </div>
         ) : pane === "MATCH" ? (
           <PropertyMatch lead={lead} />
         ) : pane === "LABELS" ? (

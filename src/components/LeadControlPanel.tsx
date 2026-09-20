@@ -26,6 +26,7 @@ import { LeadAdminStrip } from "./admin/LeadAdminStrip";
 import { useLifecycle } from "@/lib/pipeline/lifecycle";
 import { useLiveActivity } from "@/lib/live-activity";
 import { History, Users as UsersIcon } from "lucide-react";
+import { CustomerAuditHistory } from "@/components/common/CustomerAuditHistory";
 import {
   Phone, MessageSquare, Calendar as CalendarIcon, Tag, ClipboardCheck,
   AlertTriangle, CheckCircle2, X, Activity as ActivityIcon, MapPin,
@@ -812,8 +813,10 @@ export function LeadControlPanel() {
               </Section>
             </TabsContent>
 
-            {/* ACTIVITY LOG */}
-            <TabsContent value="log" className="pt-4">
+            {/* ACTIVITY LOG & OPERATIONAL AUDIT TRAIL */}
+            <TabsContent value="log" className="pt-4 space-y-4">
+              <CustomerAuditHistory leadId={lead.id} />
+
               <Section title="Activity log (auto)">
                 <div className="space-y-2">
                   {leadActivities.length === 0 && (

@@ -23,8 +23,15 @@ import {
 } from "@/lib/commitments/store";
 import { atRisk, boardDigest, groupByUrgency, ownersOf, riskFlags } from "@/lib/commitments/insights";
 import { NotClosedDialog } from "./NotClosedDialog";
+import { useOperationalStore } from "@/lib/operational-engine/store";
+import { FinalizeBookingDialog } from "./FinalizeBookingDialog";
+import { CustomerAuditHistory } from "@/components/common/CustomerAuditHistory";
+import { computeNextBestAction } from "@/lib/operational-engine/next-best-action";
+import { updateBookingFlowStage } from "@/lib/operational-engine/actions";
+import type { OperationalLead } from "@/lib/operational-engine/types";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type Bucket = "today" | "overdue" | "open" | "settled";
+type Bucket = "pipeline" | "booked" | "today" | "overdue" | "open" | "settled";
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -40,7 +47,12 @@ function countdown(h: number) {
 /** The Closing Board — every promise the team made, and whether it survived contact with reality. */
 export function ClosingBoard() {
   const all = useCommitments();
-  const [bucket, setBucket] = useState<Bucket>("today");
+  const opStore = useOperationalStore();
+  const opLeads = opStore.leads;
+  const closingLeads = useMemo(() => opLeads.filter((l) => l.stage === "CLOSING"), [opLeads]);
+  const bookedLeads = useMemo(() => opLeads.filter((l) => l.stage === "BOOKED"), [opLeads]);
+
+  const [bucket, setBucket] = useState<Bucket>("pipeline");
   const [query, setQuery] = useState("");
   const [owner, setOwner] = useState<string>("all");
   const now = Date.now();
@@ -67,13 +79,31 @@ export function ClosingBoard() {
   }, [all, bucket, now, query, owner]);
 
   const grouped = useMemo(
-    () => (bucket === "settled" ? null : groupByUrgency(list, now)),
+    () => (bucket === "settled" || bucket === "pipeline" || bucket === "booked" ? null : groupByUrgency(list, now)),
     [list, bucket, now],
   );
   const settledRows = useMemo(
     () => [...list].sort((a, b) => +new Date(b.closedAt ?? b.dueAt) - +new Date(a.closedAt ?? a.dueAt)),
     [list],
   );
+
+  const filteredClosingLeads = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return closingLeads.filter(
+      (l) =>
+        (owner === "all" || l.currentHandlerName === owner || l.currentOwner === owner) &&
+        (!q || l.name.toLowerCase().includes(q) || l.phone.includes(q) || l.locationText.toLowerCase().includes(q))
+    );
+  }, [closingLeads, query, owner]);
+
+  const filteredBookedLeads = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return bookedLeads.filter(
+      (l) =>
+        (owner === "all" || l.currentHandlerName === owner || l.currentOwner === owner) &&
+        (!q || l.name.toLowerCase().includes(q) || l.phone.includes(q))
+    );
+  }, [bookedLeads, query, owner]);
 
   const copyDigest = async () => {
     const text = boardDigest(all, now);
@@ -89,11 +119,11 @@ export function ClosingBoard() {
     <div className="space-y-4">
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
-        <Stat label="Closing today" value={stats.today} icon={<Target className="h-3 w-3" />} tone="primary" />
+        <Stat label="Closing Deals" value={closingLeads.length} icon={<Target className="h-3 w-3" />} tone="primary" />
+        <Stat label="Paid Bookings" value={bookedLeads.length} icon={<CheckCircle2 className="h-3 w-3" />} tone="ok" />
+        <Stat label="Closing today" value={stats.today} icon={<Clock className="h-3 w-3" />} tone="primary" />
         <Stat label="Overdue promises" value={stats.expired} icon={<AlertTriangle className="h-3 w-3" />} tone={stats.expired ? "danger" : "ok"} />
-        <Stat label="Live promises" value={stats.open} icon={<Clock className="h-3 w-3" />} />
         <Stat label="Kept today" value={stats.keptToday} icon={<CheckCircle2 className="h-3 w-3" />} tone="ok" />
-        <Stat label="Broken" value={stats.broken} icon={<XCircle className="h-3 w-3" />} tone={stats.broken ? "danger" : "ok"} />
         <Stat label="Promise accuracy" value={stats.accuracy === null ? "—" : `${stats.accuracy}%`} icon={<TrendingUp className="h-3 w-3" />} tone="primary" />
       </div>
 
@@ -136,6 +166,8 @@ export function ClosingBoard() {
         <div className="flex flex-wrap items-center gap-1.5">
           {(
             [
+              ["pipeline", `Closing Deals (${closingLeads.length})`],
+              ["booked", `Paid Bookings (${bookedLeads.length})`],
               ["today", `Closing today (${stats.today})`],
               ["overdue", `Overdue (${stats.expired})`],
               ["open", `All live (${stats.open})`],
@@ -195,30 +227,56 @@ export function ClosingBoard() {
       </div>
 
       {/* Rows */}
-      {list.length === 0 && <ClosingCandidates />}
-
-      {bucket === "settled"
-        ? <div className="space-y-2">{settledRows.map((c) => <Row key={c.id} c={c} now={now} />)}</div>
-        : grouped?.map((g) => (
-            <section key={g.key} className="space-y-2">
-              <div className="flex items-baseline gap-2">
-                <h3
-                  className={cn(
-                    "text-xs font-bold uppercase tracking-wide",
-                    g.meta.tone === "danger" && "text-destructive",
-                    g.meta.tone === "hot" && "text-amber-600 dark:text-amber-400",
-                    g.meta.tone === "warm" && "text-primary",
-                    g.meta.tone === "cool" && "text-muted-foreground",
-                  )}
-                >
-                  {g.meta.title}
-                </h3>
-                <span className="text-[10px] tabular-nums text-muted-foreground">{g.rows.length}</span>
-                <span className="hidden text-[10px] text-muted-foreground sm:inline">— {g.meta.blurb}</span>
-              </div>
-              {g.rows.map((c) => <Row key={c.id} c={c} now={now} />)}
-            </section>
-          ))}
+      {bucket === "pipeline" ? (
+        filteredClosingLeads.length === 0 ? (
+          <Card className="p-6 text-center text-sm text-muted-foreground">
+            No leads currently in CLOSING stage. Move leads from M-POWER CALL and Booking Flow to populate this desk.
+          </Card>
+        ) : (
+          <div className="space-y-2.5">
+            {filteredClosingLeads.map((lead) => (
+              <OperationalClosingLeadCard key={lead.id} lead={lead} />
+            ))}
+          </div>
+        )
+      ) : bucket === "booked" ? (
+        filteredBookedLeads.length === 0 ? (
+          <Card className="p-6 text-center text-sm text-muted-foreground">
+            No paid bookings finalized yet. Confirm closing deals above to register bookings and generate receipts.
+          </Card>
+        ) : (
+          <div className="space-y-2.5">
+            {filteredBookedLeads.map((lead) => (
+              <OperationalBookedLeadCard key={lead.id} lead={lead} />
+            ))}
+          </div>
+        )
+      ) : list.length === 0 ? (
+        <ClosingCandidates />
+      ) : bucket === "settled" ? (
+        <div className="space-y-2">{settledRows.map((c) => <Row key={c.id} c={c} now={now} />)}</div>
+      ) : (
+        grouped?.map((g) => (
+          <section key={g.key} className="space-y-2">
+            <div className="flex items-baseline gap-2">
+              <h3
+                className={cn(
+                  "text-xs font-bold uppercase tracking-wide",
+                  g.meta.tone === "danger" && "text-destructive",
+                  g.meta.tone === "hot" && "text-amber-600 dark:text-amber-400",
+                  g.meta.tone === "warm" && "text-primary",
+                  g.meta.tone === "cool" && "text-muted-foreground",
+                )}
+              >
+                {g.meta.title}
+              </h3>
+              <span className="text-[10px] tabular-nums text-muted-foreground">{g.rows.length}</span>
+              <span className="hidden text-[10px] text-muted-foreground sm:inline">— {g.meta.blurb}</span>
+            </div>
+            {g.rows.map((c) => <Row key={c.id} c={c} now={now} />)}
+          </section>
+        ))
+      )}
 
       {/* Why promises broke */}
       {problems.length > 0 && (
@@ -481,3 +539,211 @@ function ClosingCandidates() {
     </Card>
   );
 }
+
+function OperationalClosingLeadCard({ lead }: { lead: OperationalLead }) {
+  const [finalizeOpen, setFinalizeOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [notCloseOpen, setNotCloseOpen] = useState(false);
+  const nba = computeNextBestAction(lead);
+
+  return (
+    <Card className="border-primary/40 bg-card p-3 space-y-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold">{lead.name}</span>
+            <span className="text-xs text-muted-foreground">{lead.phone}</span>
+            <Badge variant="outline" className="text-[10px] uppercase font-bold text-primary">
+              Stage: {lead.stage}
+            </Badge>
+            <Badge variant="secondary" className="text-[10px]">
+              {lead.currentHandlerName || lead.currentOwner}
+            </Badge>
+          </div>
+
+          <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+            <span>Area: <strong className="text-foreground">{lead.locationText || "—"}</strong></span>
+            <span>Budget: <strong className="text-foreground">₹{lead.budget.toLocaleString("en-IN")}</strong></span>
+            <span>Room: <strong className="text-foreground">{lead.sharingType}</strong></span>
+            <span>Move-in: <strong className="text-foreground">{lead.moveInDate || "Immediate"}</strong></span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button
+            size="sm"
+            className="h-7 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold"
+            onClick={() => setFinalizeOpen(true)}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Confirm Booking & Issue Receipt
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1 text-[11px] text-destructive"
+            onClick={() => setNotCloseOpen(true)}
+          >
+            <XCircle className="h-3.5 w-3.5" />
+            Did Not Close
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 text-[11px]"
+            onClick={() => setShowHistory((v) => !v)}
+          >
+            <History className="h-3.5 w-3.5" />
+            {showHistory ? "Hide Audit" : "Audit Trail"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Next Best Action Banner */}
+      {nba && (
+        <div className="rounded border border-primary/30 bg-primary/5 p-2 text-xs flex items-center justify-between">
+          <div>
+            <span className="font-semibold text-primary">Next Action: {nba.kind}</span>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{nba.reason}</p>
+          </div>
+          <div className="text-right text-[10px] text-muted-foreground shrink-0 ml-2">
+            <div>Owner: <span className="font-medium text-foreground">{nba.owner}</span></div>
+            <div>Due: <span className="font-medium text-foreground">{new Date(nba.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>
+          </div>
+        </div>
+      )}
+
+      {/* Audit History */}
+      {showHistory && (
+        <div className="border-t pt-2 mt-2">
+          <CustomerAuditHistory leadId={lead.id} />
+        </div>
+      )}
+
+      {/* Finalize Booking Dialog */}
+      <FinalizeBookingDialog
+        lead={lead}
+        open={finalizeOpen}
+        onOpenChange={setFinalizeOpen}
+      />
+
+      {/* Did Not Close Dialog */}
+      <Dialog open={notCloseOpen} onOpenChange={setNotCloseOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold text-destructive">
+              Mark {lead.name} as Did Not Close
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Select the primary reason why this closing opportunity did not convert.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 gap-1.5 py-2">
+            {[
+              "Price / Budget Too High",
+              "Found Alternative PG",
+              "Staying with Friends/Family",
+              "Location / Commute Issue",
+              "Move-in Date Postponed",
+              "Parent Disapproval",
+            ].map((reason) => (
+              <Button
+                key={reason}
+                variant="outline"
+                size="sm"
+                className="h-auto py-1.5 px-2 text-[11px] text-left justify-start"
+                onClick={async () => {
+                  await updateBookingFlowStage(lead.id, { stage: "LOST" });
+                  toast.warning(`${lead.name} marked as lost: ${reason}`);
+                  setNotCloseOpen(false);
+                }}
+              >
+                {reason}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+function OperationalBookedLeadCard({ lead }: { lead: OperationalLead }) {
+  const [showHistory, setShowHistory] = useState(false);
+  const [finalizeOpen, setFinalizeOpen] = useState(false);
+  const nba = computeNextBestAction(lead);
+
+  return (
+    <Card className="border-emerald-500/40 bg-emerald-50/20 dark:bg-emerald-950/10 p-3 space-y-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold">{lead.name}</span>
+            <span className="text-xs text-muted-foreground">{lead.phone}</span>
+            <Badge className="bg-emerald-600 text-white text-[10px] uppercase font-bold">
+              BOOKED & PAID
+            </Badge>
+          </div>
+
+          <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+            <span>Property: <strong className="text-foreground">{lead.selectedPropertyName || "Gharpayy Emerald Suites"}</strong></span>
+            <span>Room: <strong className="text-foreground">{lead.selectedPropertyId || "302-B"}</strong></span>
+            <span>Rent: <strong className="text-foreground">₹{lead.budget.toLocaleString("en-IN")}</strong></span>
+            <span>Move-in: <strong className="text-foreground">{lead.moveInDate || "Immediate"}</strong></span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1 text-[11px]"
+            onClick={() => setFinalizeOpen(true)}
+          >
+            <Copy className="h-3.5 w-3.5" />
+            View / Reissue Receipt
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 text-[11px]"
+            onClick={() => setShowHistory((v) => !v)}
+          >
+            <History className="h-3.5 w-3.5" />
+            {showHistory ? "Hide Audit" : "Audit Trail"}
+          </Button>
+        </div>
+      </div>
+
+      {nba && (
+        <div className="rounded border border-emerald-500/30 bg-emerald-500/5 p-2 text-xs flex items-center justify-between">
+          <div>
+            <span className="font-semibold text-emerald-700 dark:text-emerald-400">Next Action: {nba.kind}</span>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{nba.reason}</p>
+          </div>
+          <div className="text-right text-[10px] text-muted-foreground shrink-0 ml-2">
+            <div>Owner: <span className="font-medium text-foreground">{nba.owner}</span></div>
+            <div>Due: <span className="font-medium text-foreground">{new Date(nba.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>
+          </div>
+        </div>
+      )}
+
+      {showHistory && (
+        <div className="border-t pt-2 mt-2">
+          <CustomerAuditHistory leadId={lead.id} />
+        </div>
+      )}
+
+      <FinalizeBookingDialog
+        lead={lead}
+        open={finalizeOpen}
+        onOpenChange={setFinalizeOpen}
+      />
+    </Card>
+  );
+}
+
