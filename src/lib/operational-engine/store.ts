@@ -16,18 +16,18 @@ const INITIAL_LEADS: OperationalLead[] = [
   {
     id: "lead-aarav-01",
     name: "Aarav Sharma",
-    phone: "+919876543210",
+    phone: "+91 98765 43210",
     locationText: "Koramangala 4th Block",
     budget: 15000,
     sharingType: "Single",
     moveInDate: new Date(Date.now() + 86400000 * 5).toISOString().slice(0, 10),
-    stage: "WHERE",
+    stage: "NEW",
     currentOwner: "Samit Jain",
     currentHandlerName: "Samit Jain",
     status: "open",
     priority: "high",
     lastOperatorActionAt: new Date(Date.now() - 1800000).toISOString(),
-    lastMessagePreview: "Looking for a single room near Sony Signal, budget around 15-18k.",
+    lastMessagePreview: "Looking for a single room near Sony Signal, budget around 15k.",
     callStreak: 0,
     createdAt: new Date(Date.now() - 3600000 * 4).toISOString(),
     updatedAt: new Date(Date.now() - 1800000).toISOString(),
@@ -145,6 +145,7 @@ interface OperationalStoreState {
   addBooking: (booking: OperationalBooking) => void;
   addAuditLog: (log: OperationalAuditLog) => void;
   resetToDefaults: () => void;
+  hydrateFromSupabase: () => Promise<void>;
 }
 
 export const useOperationalStore = create<OperationalStoreState>()(
@@ -280,6 +281,128 @@ export const useOperationalStore = create<OperationalStoreState>()(
           bookings: [],
           auditLogs: [],
         }),
+
+      hydrateFromSupabase: async () => {
+        try {
+          const db = supabase as any;
+          const [execRes, timeRes] = await Promise.all([
+            db.from("e2e_lead_execution").select("*"),
+            db.from("e2e_lead_timeline").select("*").order("created_at", { ascending: false }).limit(50),
+          ]);
+
+          const execRows = execRes.data;
+          const timelineRows = timeRes.data;
+
+          if (execRows && execRows.length > 0) {
+            set((state) => {
+              const nextLeads = [...state.leads];
+              const nextBookings = [...state.bookings];
+              let nextActions = [...state.nextActions];
+
+              execRows.forEach((row: any) => {
+                const leadIdx = nextLeads.findIndex((l) => l.id === row.lead_id);
+                if (leadIdx >= 0) {
+                  const current = nextLeads[leadIdx];
+                  const stage = (row.where_state as PipelineStage) || current.stage;
+                  const updatedLead: OperationalLead = {
+                    ...current,
+                    stage,
+                    currentOwner: row.owner_name || current.currentOwner,
+                    currentHandlerName: row.owner_name || current.currentHandlerName,
+                    status: row.booking_status === "confirmed" ? "booked" : row.where_state === "CLOSING" ? "closing" : current.status,
+                    lastCallOutcome: row.last_outcome || current.lastCallOutcome,
+                    updatedAt: row.updated_at || current.updatedAt,
+                  };
+
+                  if (row.situation) {
+                    try {
+                      const fin = JSON.parse(row.situation);
+                      if (fin.monthlyRent && fin.tokenAmount) {
+                        updatedLead.budget = fin.monthlyRent;
+                        const bId = fin.bookingId || `book-${row.lead_id}`;
+                        if (!nextBookings.some((b) => b.id === bId)) {
+                          nextBookings.push({
+                            id: bId,
+                            leadId: row.lead_id,
+                            tenantName: current.name,
+                            tenantPhone: current.phone,
+                            propertyId: fin.propertyId || "prop-1",
+                            propertyName: fin.propertyName || "Gharpayy Koramangala 5B",
+                            roomTypeId: "single",
+                            roomOrBedLabel: fin.roomOrBedLabel || "Room 302-B",
+                            monthlyRent: fin.monthlyRent,
+                            securityDeposit: fin.securityDeposit,
+                            tokenAmount: fin.tokenAmount,
+                            paymentMode: fin.paymentMode,
+                            transactionRef: fin.transactionRef,
+                            maintenanceAmount: 1500,
+                            agreementStartDate: fin.agreementStartDate || current.moveInDate,
+                            lockInPeriod: 3,
+                            noticePeriod: 30,
+                            status: "confirmed",
+                            token: fin.transactionRef || "BK-CONFIRMED",
+                            createdBy: row.owner_name || "Samit Jain",
+                            createdAt: row.updated_at || new Date().toISOString(),
+                            updatedAt: row.updated_at || new Date().toISOString(),
+                          });
+                        }
+                      }
+                    } catch {
+                      // Text situation
+                    }
+                  }
+
+                  nextLeads[leadIdx] = updatedLead;
+
+                  if (row.next_action) {
+                    const nba = computeNextBestAction(updatedLead);
+                    nextActions = [
+                      {
+                        id: `act-${row.lead_id}-${Date.now()}`,
+                        leadId: row.lead_id,
+                        kind: row.next_action || nba.kind,
+                        owner: row.owner_name || nba.owner,
+                        dueAt: row.next_action_at || nba.dueAt,
+                        reason: nba.reason,
+                        urgency: (row.urgency as any) || nba.urgency,
+                        status: "open",
+                        createdAt: row.updated_at || new Date().toISOString(),
+                        updatedAt: row.updated_at || new Date().toISOString(),
+                      },
+                      ...nextActions.filter((a) => a.leadId !== row.lead_id),
+                    ];
+                  }
+                }
+              });
+
+              let nextAudits = [...state.auditLogs];
+              if (timelineRows && timelineRows.length > 0) {
+                timelineRows.forEach((tRow: any) => {
+                  if (!nextAudits.some((a) => a.id === tRow.id)) {
+                    nextAudits.unshift({
+                      id: tRow.id,
+                      entity: "lead",
+                      entityId: tRow.lead_id,
+                      action: tRow.text,
+                      actor: tRow.actor || "Samit Jain",
+                      at: tRow.created_at,
+                    });
+                  }
+                });
+              }
+
+              return {
+                leads: nextLeads,
+                bookings: nextBookings,
+                nextActions,
+                auditLogs: nextAudits,
+              };
+            });
+          }
+        } catch (err) {
+          console.warn("[OperationalStore] Hydration notice:", err);
+        }
+      },
     }),
     {
       name: "gharpayy.operational.engine.v2",

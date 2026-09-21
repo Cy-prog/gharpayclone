@@ -243,11 +243,7 @@ export function FinalizeBookingDialog({ lead, open, onOpenChange, onSuccess }: P
                         id="monthly-rent"
                         type="number"
                         value={monthlyRent}
-                        onChange={(e) => {
-                          const r = Number(e.target.value);
-                          setMonthlyRent(r);
-                          setSecurityDeposit(r * 2);
-                        }}
+                        onChange={(e) => setMonthlyRent(Number(e.target.value))}
                         className="h-8 pl-7 text-xs font-semibold"
                         placeholder="15000"
                       />
@@ -328,12 +324,12 @@ export function FinalizeBookingDialog({ lead, open, onOpenChange, onSuccess }: P
               </Button>
               <Button
                 size="sm"
-                className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs"
                 onClick={handleConfirm}
                 disabled={isSubmitting}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                {isSubmitting ? "Confirming..." : "Confirm Booking & Issue Receipt"}
+                {isSubmitting ? "Confirming..." : "CONFIRM BOOKING"}
               </Button>
             </DialogFooter>
           </>
@@ -342,11 +338,10 @@ export function FinalizeBookingDialog({ lead, open, onOpenChange, onSuccess }: P
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base text-emerald-600">
                 <CheckCircle2 className="h-5 w-5" />
-                Booking Confirmed & Receipt Issued!
+                BOOKING CONFIRMED
               </DialogTitle>
               <DialogDescription className="text-xs">
-                The booking has been successfully recorded in Gharpayy operational engine and
-                Supabase.
+                Booking confirmed for {receiptData.leadName} and persisted to Supabase cloud.
               </DialogDescription>
             </DialogHeader>
 
@@ -355,53 +350,45 @@ export function FinalizeBookingDialog({ lead, open, onOpenChange, onSuccess }: P
               <div className="flex items-center justify-between border-b pb-2">
                 <div>
                   <h3 className="font-bold text-sm tracking-tight text-foreground">
-                    GHARPAYY RESIDENCY
+                    {receiptData.leadName}
                   </h3>
-                  <p className="text-[10px] text-muted-foreground">Official Booking Confirmation</p>
+                  <p className="text-[10px] text-muted-foreground font-mono">Booking ID: {receiptData.bookingId}</p>
                 </div>
-                <Badge className="bg-emerald-600 text-white text-[10px]">PAID & RESERVED</Badge>
+                <Badge className="bg-emerald-600 text-white text-[10px]">BOOKED & CONFIRMED</Badge>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-[11px]">
                 <div>
-                  <span className="text-muted-foreground block text-[10px]">TENANT NAME</span>
-                  <span className="font-semibold">{receiptData.leadName}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block text-[10px]">PHONE</span>
-                  <span className="font-semibold">{receiptData.phone}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block text-[10px]">PROPERTY</span>
-                  <span className="font-semibold">{receiptData.property}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block text-[10px]">ROOM ALLOCATED</span>
-                  <span className="font-semibold">{receiptData.room}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block text-[10px]">TOKEN RECEIVED</span>
-                  <span className="font-bold text-emerald-600 text-xs">
-                    ₹{receiptData.tokenAmount.toLocaleString("en-IN")}
+                  <span className="text-muted-foreground block text-[10px]">Monthly Rent:</span>
+                  <span className="font-bold text-foreground">
+                    ₹{receiptData.monthlyRent.toLocaleString("en-IN")}
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[10px]">MONTHLY RENT</span>
-                  <span className="font-semibold">
-                    ₹{receiptData.monthlyRent.toLocaleString("en-IN")}/mo
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block text-[10px]">SECURITY DEPOSIT</span>
-                  <span className="font-medium">
+                  <span className="text-muted-foreground block text-[10px]">Security Deposit:</span>
+                  <span className="font-bold text-foreground">
                     ₹{receiptData.securityDeposit.toLocaleString("en-IN")}
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[10px]">PAYMENT MODE</span>
-                  <span className="font-medium">
-                    {receiptData.paymentMode} ({receiptData.ref})
+                  <span className="text-muted-foreground block text-[10px]">Booking Token:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    ₹{receiptData.tokenAmount.toLocaleString("en-IN")}
                   </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Booking ID:</span>
+                  <span className="font-mono font-semibold text-foreground">
+                    {receiptData.bookingId}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Property:</span>
+                  <span className="font-medium text-foreground">{receiptData.property}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Payment Mode:</span>
+                  <span className="font-medium text-foreground">{receiptData.paymentMode} ({receiptData.ref})</span>
                 </div>
               </div>
 
@@ -415,21 +402,30 @@ export function FinalizeBookingDialog({ lead, open, onOpenChange, onSuccess }: P
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1 text-xs"
+                className="gap-1 text-xs font-semibold"
+                onClick={() => toast.info(`Receipt for ${receiptData.leadName} (Booking ID: ${receiptData.bookingId}) displayed above`)}
+              >
+                VIEW RECEIPT
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                 onClick={copyWhatsAppMessage}
               >
                 <Copy className="h-3.5 w-3.5" />
-                Copy WhatsApp Receipt
+                COPY CUSTOMER MESSAGE
               </Button>
               <Button
                 size="sm"
-                className="gap-1 text-xs"
+                variant="ghost"
+                className="text-xs"
                 onClick={() => {
                   onOpenChange(false);
                   setReceiptData(null);
                 }}
               >
-                Done
+                Close
               </Button>
             </DialogFooter>
           </>

@@ -50,6 +50,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { CallEngine } from "@/callengine/CallEngine";
 import { useMovement } from "@/movement/store";
 import { canonicalCustomerId } from "@/lib/canonical/customer-id";
+import { MPowerOperationalWorkspace } from "./leads/MPowerOperationalWorkspace";
 
 const TAG_OPTIONS = ["price-issue", "location-mismatch", "parents-involved", "urgent", "budget-low"];
 const OBJECTIONS = ["Budget", "Location", "Amenities", "Timing", "Parents", "Comparing options", "Other"];
@@ -107,7 +108,7 @@ export function LeadControlPanel() {
   const [propertyId, setPropertyId] = useState("");
   const [tcmId, setTcmId] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
-  const [tab, setTab] = useState("control");
+  const [tab, setTab] = useState("mpower");
   const [, mounted] = useMountedNow();
 
   // Note state
@@ -257,8 +258,8 @@ export function LeadControlPanel() {
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <Button
               size="sm"
-              onClick={openCallEngine}
-              className="h-9 flex-1 min-w-[170px] animate-pulse-none bg-gradient-to-r from-primary via-primary to-accent font-display text-[12px] font-bold uppercase tracking-[0.14em] text-primary-foreground shadow-lg shadow-primary/30 ring-1 ring-primary/40 transition-transform hover:scale-[1.02]"
+              onClick={() => setTab("mpower")}
+              className="h-9 flex-1 min-w-[170px] animate-pulse-none bg-gradient-to-r from-amber-600 via-amber-500 to-amber-700 font-display text-[12px] font-bold uppercase tracking-[0.14em] text-white shadow-lg shadow-amber-500/30 ring-1 ring-amber-500/40 transition-transform hover:scale-[1.02]"
             >
               <Zap className="mr-1.5 h-4 w-4" /> M-POWER CALL
             </Button>
@@ -336,7 +337,8 @@ export function LeadControlPanel() {
             )}
           </div>
           <Tabs value={tab} onValueChange={setTab} className="px-5 py-4">
-            <TabsList className="grid h-auto w-full grid-cols-4 gap-1 sm:grid-cols-8">
+            <TabsList className="grid h-auto w-full grid-cols-4 gap-1 sm:grid-cols-9">
+              <TabsTrigger value="mpower" className="text-xs font-bold text-amber-600 dark:text-amber-400">⚡ M-Power</TabsTrigger>
               <TabsTrigger value="best-fit" className="text-xs">Best Fit</TabsTrigger>
               <TabsTrigger value="dossier" className="text-xs">Dossier</TabsTrigger>
               <TabsTrigger value="control" className="text-xs">Control</TabsTrigger>
@@ -350,6 +352,10 @@ export function LeadControlPanel() {
               <TabsTrigger value="handoff" className="text-xs">Handoff</TabsTrigger>
               <TabsTrigger value="log" className="text-xs">Log</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="mpower" className="space-y-4 pt-4">
+              <MPowerOperationalWorkspace leadId={lead.id} onLogged={() => setTab("control")} />
+            </TabsContent>
 
             <TabsContent value="followups" className="space-y-4 pt-4">
               <Section title="Follow-up engine">

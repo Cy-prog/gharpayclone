@@ -198,10 +198,41 @@ export async function executeCallCommit(input: CallCommitInput): Promise<{
   store.upsertNextAction(nextAction);
   store.addAuditLog(auditLog);
 
-  // 7. Attempt real Supabase persistence
+  // 7. Supabase live backend persistence
+  const db = supabase as any;
+  const { error: execError } = await db.from("e2e_lead_execution").upsert({
+    lead_id: input.leadId,
+    owner_name: input.operatorName || "Samit Jain",
+    where_state: updatedLead.stage,
+    last_outcome: input.outcome,
+    next_action: nextAction.kind,
+    next_action_at: nextAction.dueAt,
+    situation: `Call logged: ${input.outcome.toUpperCase()} (Agenda: ${input.agenda})`,
+    urgency: nextAction.urgency,
+    updated_at: now,
+  });
+
+  if (execError) {
+    console.error("[OperationalEngine] Supabase execution error:", execError);
+    return {
+      ok: false,
+      callId: "",
+      lead: existingLead,
+      nextAction: null as any,
+      error: "Unable to save this call record to Supabase. " + execError.message,
+    };
+  }
+
+  // Insert timeline audit event into Supabase
+  await db.from("e2e_lead_timeline").insert({
+    lead_id: input.leadId,
+    actor: input.operatorName || "Samit Jain",
+    text: auditLog.action,
+    created_at: now,
+  });
+
+  // Also sync auxiliary tables (call_records, leads, audit_logs)
   try {
-    const db = supabase as any;
-    // Attempt inserting call record
     await db.from("call_records").insert({
       called_at: now,
       operator_name: input.operatorName,
@@ -217,42 +248,22 @@ export async function executeCallCommit(input: CallCommitInput): Promise<{
       follow_up: input.followUp ?? null,
       client_id: callId,
     });
-
-    // Attempt updating lead
-    await db
-      .from("leads")
-      .update({
-        location_text: updatedLead.locationText,
-        current_pipeline_stage: updatedLead.stage,
-        last_operator_action_at: now,
-        updated_at: now,
-      })
-      .eq("id", input.leadId);
-
-    // Attempt inserting next_action
-    await db.from("next_actions").insert({
-      lead_id: input.leadId,
-      kind: nextAction.kind,
-      due_at: nextAction.dueAt,
-      status: "open",
-      notes: nextAction.reason,
-      source: "m_power_call",
-    });
-
-    // Attempt inserting audit log
+    await db.from("leads").update({
+      location_text: updatedLead.locationText,
+      current_pipeline_stage: updatedLead.stage,
+      last_operator_action_at: now,
+      updated_at: now,
+    }).eq("id", input.leadId);
     await db.from("audit_logs").insert({
       entity: "lead",
       entity_id: input.leadId,
       action: auditLog.action,
       actor: input.operatorName,
       at: now,
-      prev: auditLog.prev,
-      next: auditLog.next,
       reason: auditLog.reason,
     });
-  } catch (err) {
-    // Cloud write logged; local operational store is authoritative and preserved
-    console.info("[OperationalEngine] Cloud sync status:", err);
+  } catch (syncErr) {
+    console.info("[OperationalEngine] Auxiliary sync notice:", syncErr);
   }
 
   return { ok: true, callId, lead: updatedLead, nextAction };
@@ -329,9 +340,38 @@ export async function updateBookingFlowStage(
   store.upsertNextAction(nextAction);
   store.addAuditLog(auditLog);
 
-  // Sync to Supabase
+  // Sync to Supabase live tables
+  const db = supabase as any;
+  const { error: execError } = await db.from("e2e_lead_execution").upsert({
+    lead_id: updatedLead.id,
+    owner_name: updatedLead.currentHandlerName || updatedLead.currentOwner || "Samit Jain",
+    where_state: updatedLead.stage,
+    next_action: nextAction.kind,
+    next_action_at: nextAction.dueAt,
+    situation: `Stage advanced to ${updatedLead.stage}. Location: ${updatedLead.locationText}, Budget: ₹${updatedLead.budget}`,
+    urgency: nextAction.urgency,
+    booking_status: updatedLead.stage === "BOOKED" ? "confirmed" : updatedLead.stage === "CLOSING" ? "closing" : "in_progress",
+    updated_at: now,
+  });
+
+  if (execError) {
+    console.error("[OperationalEngine] Supabase stage update error:", execError);
+    return {
+      ok: false,
+      lead: existingLead,
+      nextAction: null as any,
+      error: "Unable to save stage change to Supabase: " + execError.message,
+    };
+  }
+
+  await db.from("e2e_lead_timeline").insert({
+    lead_id: updatedLead.id,
+    actor: operatorName || "Samit Jain",
+    text: auditLog.action,
+    created_at: now,
+  });
+
   try {
-    const db = supabase as any;
     await db
       .from("leads")
       .update({
@@ -349,12 +389,10 @@ export async function updateBookingFlowStage(
       action: auditLog.action,
       actor: operatorName,
       at: now,
-      prev: auditLog.prev,
-      next: auditLog.next,
       reason: auditLog.reason,
     });
-  } catch (err) {
-    console.info("[OperationalEngine] Cloud sync status:", err);
+  } catch (syncErr) {
+    console.info("[OperationalEngine] Auxiliary sync notice:", syncErr);
   }
 
   return { ok: true, lead: updatedLead, nextAction };
@@ -448,8 +486,37 @@ export async function commitClosingPromise(input: {
   store.upsertNextAction(nextAction);
   store.addAuditLog(auditLog);
 
+  // Live Supabase backend persistence
+  const db = supabase as any;
+  const { error: execError } = await db.from("e2e_lead_execution").upsert({
+    lead_id: commitment.leadId,
+    owner_name: commitment.promisedBy || "Samit Jain",
+    where_state: "CLOSING",
+    booking_status: "closing",
+    next_action: nextAction.kind,
+    next_action_at: commitment.dueAt,
+    situation: `Closing commitment active: Promised close by ${new Date(commitment.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Amount: ₹${commitment.amount || 15000}`,
+    urgency: "critical",
+    updated_at: now,
+  });
+
+  if (execError) {
+    console.error("[OperationalEngine] Supabase commitment error:", execError);
+    return {
+      ok: false,
+      commitment: null as any,
+      error: "Unable to save closing commitment to Supabase: " + execError.message,
+    };
+  }
+
+  await db.from("e2e_lead_timeline").insert({
+    lead_id: commitment.leadId,
+    actor: input.promisedBy || "Samit Jain",
+    text: auditLog.action,
+    created_at: now,
+  });
+
   try {
-    const db = supabase as any;
     await db
       .from("leads")
       .update({
@@ -467,8 +534,8 @@ export async function commitClosingPromise(input: {
       at: now,
       reason: auditLog.reason,
     });
-  } catch (err) {
-    console.info("[OperationalEngine] Cloud sync status:", err);
+  } catch (syncErr) {
+    console.info("[OperationalEngine] Auxiliary sync notice:", syncErr);
   }
 
   return { ok: true, commitment };
@@ -591,9 +658,52 @@ export async function finalizeBooking(
   store.upsertNextAction(nextAction);
   store.addAuditLog(auditLog);
 
-  // Sync with Supabase crib_bookings & leads
+  // Live Supabase backend persistence with independent financial fields
+  const db = supabase as any;
+  const financialPayload = {
+    monthlyRent: input.monthlyRent,
+    securityDeposit: input.securityDeposit,
+    tokenAmount: input.tokenAmount,
+    paymentMode: input.paymentMode || "UPI",
+    transactionRef: input.transactionRef || tokenRef,
+    bookingId,
+    propertyId: booking.propertyId,
+    propertyName: booking.propertyName,
+    roomOrBedLabel: booking.roomOrBedLabel,
+    agreementStartDate: booking.agreementStartDate,
+  };
+
+  const { error: execError } = await db.from("e2e_lead_execution").upsert({
+    lead_id: lead.id,
+    owner_name: input.operatorName || "Samit Jain",
+    where_state: "BOOKED",
+    booking_status: "confirmed",
+    next_action: nextAction.kind,
+    next_action_at: nextAction.dueAt,
+    last_outcome: "connected",
+    situation: JSON.stringify(financialPayload),
+    urgency: "low",
+    updated_at: now,
+  });
+
+  if (execError) {
+    console.error("[OperationalEngine] Supabase booking confirmation error:", execError);
+    return {
+      ok: false,
+      booking: null as any,
+      error: "Unable to confirm booking on Supabase: " + execError.message,
+    };
+  }
+
+  await db.from("e2e_lead_timeline").insert({
+    lead_id: lead.id,
+    actor: input.operatorName || "Samit Jain",
+    text: auditLog.action,
+    created_at: now,
+  });
+
+  // Also sync auxiliary tables (crib_bookings, leads, audit_logs)
   try {
-    const db = supabase as any;
     const cribPayload: Record<string, any> = {
       id: booking.id,
       tenant_name: booking.tenantName,
@@ -611,29 +721,15 @@ export async function finalizeBooking(
       notice_period: booking.noticePeriod,
       status: "confirmed",
       token: booking.token,
-      notes: JSON.stringify({
-        tokenAmount: booking.tokenAmount,
-        paymentMode: booking.paymentMode,
-        transactionRef: booking.transactionRef,
-      }),
+      notes: JSON.stringify(financialPayload),
     };
 
     let { error: insertErr } = await db.from("crib_bookings").insert(cribPayload);
-
-    // If remote schema doesn't yet have token_amount/payment_mode column, fall back cleanly with structured notes
     if (insertErr && (insertErr.code === "PGRST204" || insertErr.message?.includes("column"))) {
       delete cribPayload.token_amount;
       delete cribPayload.payment_mode;
       const retry = await db.from("crib_bookings").insert(cribPayload);
       insertErr = retry.error;
-    }
-
-    if (insertErr) {
-      console.warn("[OperationalEngine] Supabase crib_bookings error:", insertErr.message);
-      // If Supabase has RLS or schema restrictions, report clearly to caller
-      if (insertErr.code !== "42501") {
-        return { ok: false, booking, error: insertErr.message || "Failed to persist to Supabase" };
-      }
     }
 
     await db
@@ -650,13 +746,12 @@ export async function finalizeBooking(
       entity: "booking",
       entity_id: lead.id,
       action: auditLog.action,
-      actor: null,
+      actor: input.operatorName,
       at: now,
       reason: auditLog.reason,
     });
-  } catch (err: any) {
-    console.error("[OperationalEngine] Cloud sync exception:", err);
-    return { ok: false, booking, error: err?.message || "Unexpected error connecting to Supabase" };
+  } catch (auxErr) {
+    console.info("[OperationalEngine] Auxiliary crib_bookings notice:", auxErr);
   }
 
   return { ok: true, booking };

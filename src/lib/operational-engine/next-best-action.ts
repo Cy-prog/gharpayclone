@@ -5,7 +5,7 @@ export function computeNextBestAction(
   commitment?: OperationalCommitment | null,
 ): Omit<OperationalNextAction, "id" | "leadId" | "createdAt" | "updatedAt" | "status"> {
   const now = Date.now();
-  const owner = lead.currentHandlerName || lead.currentOwner || "Rahul";
+  const owner = lead.currentHandlerName || lead.currentOwner || "Samit Jain";
 
   // 1. Booked state
   if (lead.stage === "BOOKED" || lead.status === "booked") {
@@ -13,7 +13,7 @@ export function computeNextBestAction(
     const kycDue = new Date(moveIn.getTime() - 86400000).toISOString();
     return {
       kind: "Generate Booking Receipt & Move-in KYC",
-      owner: "Ops Desk",
+      owner: "Samit Jain",
       dueAt: kycDue,
       reason: "Payment verified and booking confirmed; execute KYC and key handover protocol.",
       urgency: "low",
@@ -38,7 +38,7 @@ export function computeNextBestAction(
   if (lead.stage === "CLOSING" || lead.stage === "TOUR_COMPLETED") {
     return {
       kind: "Create Closing Commitment & Hold Room",
-      owner: "Closing Desk Lead",
+      owner: owner,
       dueAt: new Date(now + 2 * 3600000).toISOString(),
       reason: "Customer completed tour with high intent; set definite close window before room hold expires.",
       urgency: "critical",

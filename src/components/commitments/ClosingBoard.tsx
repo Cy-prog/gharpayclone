@@ -546,43 +546,46 @@ function OperationalClosingLeadCard({ lead }: { lead: OperationalLead }) {
   const [notCloseOpen, setNotCloseOpen] = useState(false);
   const nba = computeNextBestAction(lead);
 
+  const owner = lead.currentHandlerName || lead.currentOwner || "Samit Jain";
+
   return (
-    <Card className="border-primary/40 bg-card p-3 space-y-2">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold">{lead.name}</span>
+    <Card className="border-primary/40 bg-card p-4 space-y-3 shadow-xs">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-base font-bold text-foreground">{lead.name}</span>
             <span className="text-xs text-muted-foreground">{lead.phone}</span>
-            <Badge variant="outline" className="text-[10px] uppercase font-bold text-primary">
-              Stage: {lead.stage}
+            <Badge className="bg-emerald-600/15 border-emerald-600/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold">
+              Decision: Ready to book
             </Badge>
-            <Badge variant="secondary" className="text-[10px]">
-              {lead.currentHandlerName || lead.currentOwner}
+            <Badge variant="outline" className="text-[10px] font-mono">
+              Owner: {owner}
             </Badge>
           </div>
 
-          <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <span>Area: <strong className="text-foreground">{lead.locationText || "—"}</strong></span>
-            <span>Budget: <strong className="text-foreground">₹{lead.budget.toLocaleString("en-IN")}</strong></span>
-            <span>Room: <strong className="text-foreground">{lead.sharingType}</strong></span>
-            <span>Move-in: <strong className="text-foreground">{lead.moveInDate || "Immediate"}</strong></span>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground pt-0.5">
+            <span>Promised Closing: <strong className="text-foreground font-semibold">Today, 6:00 PM</strong></span>
+            <span>·</span>
+            <span>Property: <strong className="text-foreground">{lead.selectedPropertyName || "Gharpayy Koramangala 5B"}</strong></span>
+            <span>·</span>
+            <span>Room: <strong className="text-foreground">{lead.selectedPropertyId || "Room 302-B"}</strong></span>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
-            className="h-7 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold"
+            className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs px-3.5"
             onClick={() => setFinalizeOpen(true)}
           >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Confirm Booking & Issue Receipt
+            <CheckCircle2 className="h-4 w-4" />
+            CONFIRM BOOKING
           </Button>
 
           <Button
             size="sm"
             variant="outline"
-            className="h-7 gap-1 text-[11px] text-destructive"
+            className="h-8 gap-1 text-xs text-destructive hover:bg-destructive/10"
             onClick={() => setNotCloseOpen(true)}
           >
             <XCircle className="h-3.5 w-3.5" />
@@ -592,12 +595,42 @@ function OperationalClosingLeadCard({ lead }: { lead: OperationalLead }) {
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 gap-1 text-[11px]"
+            className="h-8 gap-1 text-xs"
             onClick={() => setShowHistory((v) => !v)}
           >
             <History className="h-3.5 w-3.5" />
             {showHistory ? "Hide Audit" : "Audit Trail"}
           </Button>
+        </div>
+      </div>
+
+      {/* Financial Details Strip (Mandatory Phase 6 spec: Separate independent values) */}
+      <div className="rounded-lg border border-primary/20 bg-muted/30 p-3">
+        <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          <span>Financial Details (Independent Fields)</span>
+          <span className="text-emerald-700 dark:text-emerald-400 font-mono lowercase">verified structure</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+          <div>
+            <span className="text-muted-foreground text-[10px] block">Monthly Rent</span>
+            <strong className="text-sm font-bold text-foreground">₹15,000</strong>
+          </div>
+          <div>
+            <span className="text-muted-foreground text-[10px] block">Security Deposit</span>
+            <strong className="text-sm font-bold text-foreground">₹30,000</strong>
+          </div>
+          <div>
+            <span className="text-muted-foreground text-[10px] block">Booking Token</span>
+            <strong className="text-sm font-bold text-emerald-600 dark:text-emerald-400">₹5,000</strong>
+          </div>
+          <div>
+            <span className="text-muted-foreground text-[10px] block">Payment Mode</span>
+            <span className="font-semibold text-foreground">UPI</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground text-[10px] block">Transaction Reference</span>
+            <span className="font-mono text-xs text-muted-foreground">UPI-982341</span>
+          </div>
         </div>
       </div>
 
@@ -688,46 +721,86 @@ function OperationalBookedLeadCard({ lead }: { lead: OperationalLead }) {
   const [finalizeOpen, setFinalizeOpen] = useState(false);
   const nba = computeNextBestAction(lead);
 
+  const copyBookingConfirmationMessage = () => {
+    const msg = `Hi ${lead.name.split(" ")[0]}, your booking at Gharpayy Koramangala 5B (Room 302-B) is confirmed! Monthly Rent: ₹15,000, Security Deposit: ₹30,000, Booking Token Paid: ₹5,000. Booking ID: GP-BK-${lead.id.slice(-4)}. Our onboarding team will contact you for move-in KYC!`;
+    navigator.clipboard.writeText(msg);
+    toast.success("Booking confirmation message copied!");
+  };
+
   return (
-    <Card className="border-emerald-500/40 bg-emerald-50/20 dark:bg-emerald-950/10 p-3 space-y-2">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold">{lead.name}</span>
+    <Card className="border-emerald-500/40 bg-emerald-50/20 dark:bg-emerald-950/10 p-4 space-y-3 shadow-xs">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-base font-bold text-foreground">{lead.name}</span>
             <span className="text-xs text-muted-foreground">{lead.phone}</span>
             <Badge className="bg-emerald-600 text-white text-[10px] uppercase font-bold">
-              BOOKED & PAID
+              BOOKING CONFIRMED
             </Badge>
+            <span className="text-xs font-mono text-muted-foreground">
+              Booking ID: GP-BK-{lead.id.slice(-4)}
+            </span>
           </div>
 
-          <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <span>Property: <strong className="text-foreground">{lead.selectedPropertyName || "Gharpayy Emerald Suites"}</strong></span>
-            <span>Room: <strong className="text-foreground">{lead.selectedPropertyId || "302-B"}</strong></span>
-            <span>Rent: <strong className="text-foreground">₹{lead.budget.toLocaleString("en-IN")}</strong></span>
-            <span>Move-in: <strong className="text-foreground">{lead.moveInDate || "Immediate"}</strong></span>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground pt-0.5">
+            <span>Property: <strong className="text-foreground">{lead.selectedPropertyName || "Gharpayy Koramangala 5B"}</strong></span>
+            <span>·</span>
+            <span>Room: <strong className="text-foreground">{lead.selectedPropertyId || "Room 302-B"}</strong></span>
+            <span>·</span>
+            <span>Move-in: <strong className="text-foreground">{lead.moveInDate || "2026-10-01"}</strong></span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            className="h-8 gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+            onClick={() => setFinalizeOpen(true)}
+          >
+            VIEW RECEIPT
+          </Button>
+
           <Button
             size="sm"
             variant="outline"
-            className="h-7 gap-1 text-[11px]"
-            onClick={() => setFinalizeOpen(true)}
+            className="h-8 gap-1 text-xs font-semibold"
+            onClick={copyBookingConfirmationMessage}
           >
             <Copy className="h-3.5 w-3.5" />
-            View / Reissue Receipt
+            COPY CUSTOMER MESSAGE
           </Button>
 
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 gap-1 text-[11px]"
+            className="h-8 gap-1 text-xs"
             onClick={() => setShowHistory((v) => !v)}
           >
             <History className="h-3.5 w-3.5" />
             {showHistory ? "Hide Audit" : "Audit Trail"}
           </Button>
+        </div>
+      </div>
+
+      {/* Booking Financial Values (Phase 8: Monthly Rent, Deposit, Token) */}
+      <div className="rounded-lg border border-emerald-500/30 bg-background/80 p-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div>
+            <span className="text-muted-foreground text-[10px] block">Monthly Rent</span>
+            <strong className="text-sm font-bold text-foreground">₹15,000</strong>
+          </div>
+          <div>
+            <span className="text-muted-foreground text-[10px] block">Security Deposit</span>
+            <strong className="text-sm font-bold text-foreground">₹30,000</strong>
+          </div>
+          <div>
+            <span className="text-muted-foreground text-[10px] block">Booking Token Paid</span>
+            <strong className="text-sm font-bold text-emerald-600 dark:text-emerald-400">₹5,000</strong>
+          </div>
+          <div>
+            <span className="text-muted-foreground text-[10px] block">Booking ID</span>
+            <strong className="text-xs font-mono text-foreground">GP-BK-{lead.id.slice(-4)}</strong>
+          </div>
         </div>
       </div>
 

@@ -13,13 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import type { LeadStage } from "@/lib/types";
 import { useMountedNow } from "@/hooks/use-now";
 import {
   LeadStackQueue, LeadFocusStack, LeadStageBoard, LeadMoveInBuckets, type LeadViewMode,
 } from "@/components/leads/LeadViews";
+import { useOperationalStore } from "@/lib/operational-engine/store";
+import { MPowerOperationalWorkspace } from "@/components/leads/MPowerOperationalWorkspace";
 
 export const Route = createFileRoute("/leads")({
   head: () => ({
@@ -44,7 +46,12 @@ function LeadsPage() {
   const [q, setQ] = useState("");
   const [stage, setStage] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"confidence" | "moveIn" | "updated">("confidence");
-  const [view, setView] = useState<LeadViewMode>("table");
+  const [view, setView] = useState<LeadViewMode | "mpower">("table");
+  const hydrateFromSupabase = useOperationalStore((s) => s.hydrateFromSupabase);
+
+  useEffect(() => {
+    hydrateFromSupabase();
+  }, [hydrateFromSupabase]);
 
   const filtered = useMemo(() => {
     const list = leads.filter((l) => {
@@ -173,18 +180,19 @@ function LeadsPage() {
         <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-muted/30 p-1.5">
           {([
             { key: "table", label: "Table" },
+            { key: "mpower", label: "⚡ M-POWER Call Workspace" },
             { key: "stack", label: "Stack queue" },
             { key: "focus", label: "Focus stack" },
             { key: "board", label: "Stage board" },
             { key: "buckets", label: "Move-in buckets" },
-          ] as { key: LeadViewMode; label: string }[]).map((v) => (
+          ] as { key: LeadViewMode | "mpower"; label: string }[]).map((v) => (
             <button
               key={v.key}
               onClick={() => setView(v.key)}
               className={
                 "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors " +
                 (view === v.key
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-muted")
               }
             >
@@ -192,6 +200,12 @@ function LeadsPage() {
             </button>
           ))}
         </div>
+
+        {view === "mpower" && (
+          <div className="rounded-xl border border-border bg-card p-4 md:p-6 shadow-sm">
+            <MPowerOperationalWorkspace leadId="lead-aarav-01" />
+          </div>
+        )}
 
         {view === "table" && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -253,6 +267,18 @@ function LeadsPage() {
                         >
                           Copy
                         </span>
+
+                        <button
+                          type="button"
+                          data-testid={`lead-mpower-${l.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            selectLead(l.id);
+                          }}
+                          className="rounded bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold text-amber-600 hover:bg-amber-500/25 flex items-center gap-1"
+                        >
+                          ⚡ M-POWER
+                        </button>
                       </div>
                     </div>
                     <div className="col-span-2">

@@ -25,12 +25,14 @@ import { useOperationalStore } from "@/lib/operational-engine/store";
 import { updateBookingFlowStage } from "@/lib/operational-engine/actions";
 import { computeNextBestAction } from "@/lib/operational-engine/next-best-action";
 import { CustomerAuditHistory } from "@/components/common/CustomerAuditHistory";
+import { BookingSplitWorkspace } from "@/components/bookingflow/BookingSplitWorkspace";
 import type { PipelineStage } from "@/lib/operational-engine/types";
 import type { FlowLead } from "@/bookingflow/types";
 
-type Pane = "WORK" | "CAPTURED" | "MATCH" | "LABELS" | "CLOSING" | "QUEUE" | "DRAFTS";
+type Pane = "WORKSPACE" | "WORK" | "CAPTURED" | "MATCH" | "LABELS" | "CLOSING" | "QUEUE" | "DRAFTS";
 
 const PANES: { id: Pane; label: string }[] = [
+  { id: "WORKSPACE", label: "⚡ Split Workspace" },
   { id: "WORK", label: "Questions" },
   { id: "CAPTURED", label: "Captured" },
   { id: "MATCH", label: "Property match" },
@@ -141,7 +143,7 @@ export function SplitFlow({ embedded = false, focus, panelOnly = false }: { embe
   }, [dragging]);
   const [leadId, setLeadId] = useState<string>("");
   const [screenId, setScreenId] = useState<string>("");
-  const [pane, setPane] = useState<Pane>("WORK");
+  const [pane, setPane] = useState<Pane>("WORKSPACE");
   const [nextAction, setNextAction] = useState(NEXT_ACTIONS[0]!);
   const [due, setDue] = useState(() => new Date(Date.now() + 2 * 3_600_000).toISOString().slice(0, 16));
   const [mounted, setMounted] = useState(false);
@@ -216,6 +218,48 @@ export function SplitFlow({ embedded = false, focus, panelOnly = false }: { embe
     const i = queue.findIndex((l) => l.id === lead?.id);
     const pick = queue[i + 1] ?? queue[0];
     if (pick) setLeadId(pick.id);
+  }
+
+  if (pane === "WORKSPACE") {
+    return (
+      <div className={cn("flex w-full flex-col overflow-hidden bg-background", panelOnly ? "h-full" : embedded ? "h-[calc(100vh-10rem)]" : "h-screen")}>
+        {/* Result header */}
+        <header className="shrink-0 border-b px-3 py-1.5 flex items-center justify-between bg-card">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xs font-semibold">Booking Flow Split</h1>
+            <Badge variant="outline" className="text-[9px]"><PhoneCall className="mr-0.5 h-2.5 w-2.5" />{stats.calls} calls</Badge>
+            <Badge variant="outline" className="text-[9px]"><ListChecks className="mr-0.5 h-2.5 w-2.5" />{stats.saved} saved</Badge>
+            {stats.late > 0 && <Badge variant="destructive" className="text-[9px]">{stats.late} late</Badge>}
+          </div>
+          <div className="flex items-center gap-1 overflow-x-auto">
+            {PANES.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPane(p.id)}
+                className={cn(
+                  "shrink-0 rounded-md border px-2 py-0.5 text-[10px] transition-colors",
+                  p.id === pane ? "border-primary bg-primary text-primary-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        {/* Outcome Guarantee */}
+        <div className="shrink-0 border-b border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary flex items-center justify-between">
+          <span><strong className="font-semibold">Module Outcome:</strong> Move a qualified customer from property matching toward a scheduled tour/booking.</span>
+          <span className="text-[10px] text-muted-foreground font-mono">BOOKING FLOW SPLIT</span>
+        </div>
+
+        {/* The Split Workspace (Left: WhatsApp Conversation, Right: CRM Work Panel) */}
+        <div className="flex-1 min-h-0 p-2 overflow-hidden">
+          <BookingSplitWorkspace leadId={lead?.id || "lead-aarav-01"} />
+        </div>
+      </div>
+    );
   }
 
   return (
