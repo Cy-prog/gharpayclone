@@ -328,6 +328,58 @@ export function AppShell({ children }: { children: ReactNode }) {
         })()}
 
         <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto scrollbar-thin">
+          {/* 3 Core Assignment Modules */}
+          <div className="pt-2 pb-1.5 px-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center justify-between">
+              <span>Assignment Modules</span>
+              <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono font-bold">3x DEEP</span>
+            </div>
+          </div>
+          <div className="space-y-1 mb-3 pb-2 border-b border-sidebar-border">
+            <Link
+              to="/leads"
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors",
+                isActive("/leads")
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/60",
+              )}
+            >
+              <ListChecks className="h-4 w-4 text-primary" />
+              <span>1. M-POWER Call</span>
+              <span className="ml-auto text-[9px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">Lead</span>
+            </Link>
+            <Link
+              to="/booking-flow-split"
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors",
+                isActive("/booking-flow-split")
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/60",
+              )}
+            >
+              <Compass className="h-4 w-4 text-primary" />
+              <span>2. Booking Flow Split</span>
+              <span className="ml-auto text-[9px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">Split</span>
+            </Link>
+            <Link
+              to="/closing"
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors",
+                isActive("/closing")
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/60",
+              )}
+            >
+              <Target className="h-4 w-4 text-primary" />
+              <span>3. Closing Desk</span>
+              <span className="ml-auto text-[9px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">Book</span>
+            </Link>
+          </div>
+
+          <div className="px-2 pt-1 pb-1 text-[10px] uppercase tracking-wider text-sidebar-foreground/60 font-semibold">
+            <span>CRM Navigation</span>
+          </div>
           {items.map((it) => {
             const Icon = it.icon;
             const active = isActive(it.to);
@@ -407,14 +459,55 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
           <button
             onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-            className="hidden md:flex items-center gap-2 h-8 px-3 rounded-md border border-border bg-card hover:bg-muted/60 text-xs text-muted-foreground w-full max-w-md transition-colors"
+            className="hidden xl:flex items-center gap-2 h-8 px-3 rounded-md border border-border bg-card hover:bg-muted/60 text-xs text-muted-foreground w-48 transition-colors shrink-0"
           >
             <Search className="h-3.5 w-3.5" />
-            <span>Jump to lead, page or action…</span>
+            <span>Quick jump…</span>
             <kbd className="ml-auto inline-flex items-center gap-0.5 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono">
               <Command className="h-2.5 w-2.5" />K
             </kbd>
           </button>
+
+          {/* Quick Core Modules Switcher */}
+          <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/80 text-xs">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1.5 hidden lg:inline">Core 3x:</span>
+            <Link
+              to="/leads"
+              className={cn(
+                "px-2 py-1 text-xs font-semibold rounded-md transition-colors flex items-center gap-1",
+                path.startsWith("/leads")
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/80"
+              )}
+            >
+              <ListChecks className="h-3.5 w-3.5" />
+              <span>1. M-POWER</span>
+            </Link>
+            <Link
+              to="/booking-flow-split"
+              className={cn(
+                "px-2 py-1 text-xs font-semibold rounded-md transition-colors flex items-center gap-1",
+                path.startsWith("/booking-flow-split")
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/80"
+              )}
+            >
+              <Compass className="h-3.5 w-3.5" />
+              <span>2. Booking Split</span>
+            </Link>
+            <Link
+              to="/closing"
+              className={cn(
+                "px-2 py-1 text-xs font-semibold rounded-md transition-colors flex items-center gap-1",
+                path.startsWith("/closing")
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/80"
+              )}
+            >
+              <Target className="h-3.5 w-3.5" />
+              <span>3. Closing Desk</span>
+            </Link>
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <LiveActivityDock />
             <PipButton />
@@ -433,6 +526,38 @@ export function AppShell({ children }: { children: ReactNode }) {
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="flex items-stretch gap-1 overflow-x-auto px-2 py-2 scrollbar-thin scroll-smooth snap-x">
+          {/* Pinned 3 Core Modules */}
+          <Link
+            to="/leads"
+            className={cn(
+              "relative flex shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors min-w-[64px] min-h-[44px]",
+              path.startsWith("/leads") ? "bg-primary text-primary-foreground" : "text-primary hover:bg-muted/60",
+            )}
+          >
+            <ListChecks className="h-4 w-4" />
+            <span className="whitespace-nowrap">1. M-POWER</span>
+          </Link>
+          <Link
+            to="/booking-flow-split"
+            className={cn(
+              "relative flex shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors min-w-[64px] min-h-[44px]",
+              path.startsWith("/booking-flow-split") ? "bg-primary text-primary-foreground" : "text-primary hover:bg-muted/60",
+            )}
+          >
+            <Compass className="h-4 w-4" />
+            <span className="whitespace-nowrap">2. Split Flow</span>
+          </Link>
+          <Link
+            to="/closing"
+            className={cn(
+              "relative flex shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors min-w-[64px] min-h-[44px]",
+              path.startsWith("/closing") ? "bg-primary text-primary-foreground" : "text-primary hover:bg-muted/60",
+            )}
+          >
+            <Target className="h-4 w-4" />
+            <span className="whitespace-nowrap">3. Closing</span>
+          </Link>
+          <div className="w-[1px] bg-border my-1 shrink-0" />
           {items.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.to);

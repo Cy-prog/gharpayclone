@@ -21,9 +21,7 @@ export const Route = createFileRoute("/booking-flow-split")({
 function SplitPage() {
   return (
     <AppShell>
-      <ClientOnly fallback={<p className="p-6 text-center text-sm text-muted-foreground">Loading the split screen…</p>}>
-        <SplitFlow embedded />
-      </ClientOnly>
+      <SplitFlow embedded />
     </AppShell>
   );
 }

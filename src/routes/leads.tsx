@@ -97,6 +97,15 @@ function LeadsPage() {
   return (
     <AppShell>
       <div className="space-y-4">
+        {/* Module 1 Header Banner */}
+        <div className="rounded-lg border border-primary/20 bg-primary/10 px-4 py-2.5 text-xs font-medium text-primary flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="font-bold uppercase tracking-wider text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded">Module 1 of 3</span>
+            <span><strong>M-POWER Call Console:</strong> Complete initial call workflow for customer <strong>Aarav Sharma</strong> (+91 98765 43210).</span>
+          </div>
+          <span className="text-[11px] font-mono text-muted-foreground">OPERATIONAL WORKSPACE ACTIVE</span>
+        </div>
+
         <header className="flex items-end justify-between flex-wrap gap-3">
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight">Leads</h1>
@@ -179,8 +188,8 @@ function LeadsPage() {
 
         <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-muted/30 p-1.5">
           {([
+            { key: "mpower", label: "⚡ M-POWER Call Workspace (Assigned Module 1)" },
             { key: "table", label: "Table" },
-            { key: "mpower", label: "⚡ M-POWER Call Workspace" },
             { key: "stack", label: "Stack queue" },
             { key: "focus", label: "Focus stack" },
             { key: "board", label: "Stage board" },

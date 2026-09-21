@@ -54,9 +54,7 @@ function ClosingPage() {
 
         <RoleGuaranteePanel role="closing" />
 
-        <ClientOnly fallback={<p className="py-10 text-center text-sm text-muted-foreground">Loading closing mission…</p>}>
-          <ClosingBoard />
-        </ClientOnly>
+        <ClosingBoard />
       </div>
     </AppShell>
   );
