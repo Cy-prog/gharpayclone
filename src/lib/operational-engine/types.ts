@@ -42,7 +42,14 @@ export interface OperationalCall {
   operatorName: string;
   agenda: string;
   agendaSource: "system" | "operator";
-  outcome: "connected" | "no-answer" | "busy" | "wrong-number" | "rescheduled" | "call-later" | "not-relevant";
+  outcome:
+    | "connected"
+    | "no-answer"
+    | "busy"
+    | "wrong-number"
+    | "rescheduled"
+    | "call-later"
+    | "not-relevant";
   durationSec?: number;
   capture: {
     area?: string;
@@ -121,6 +128,9 @@ export interface OperationalBooking {
   roomOrBedLabel: string;
   monthlyRent: number;
   securityDeposit: number;
+  tokenAmount?: number;
+  paymentMode?: string;
+  transactionRef?: string;
   maintenanceAmount: number;
   agreementStartDate: string;
   lockInPeriod: number;

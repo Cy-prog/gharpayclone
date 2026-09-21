@@ -17,7 +17,14 @@ export interface CallCommitInput {
   operatorName: string;
   agenda: string;
   agendaSource: "system" | "operator";
-  outcome: "connected" | "no-answer" | "busy" | "wrong-number" | "rescheduled" | "call-later" | "not-relevant";
+  outcome:
+    | "connected"
+    | "no-answer"
+    | "busy"
+    | "wrong-number"
+    | "rescheduled"
+    | "call-later"
+    | "not-relevant";
   durationSec?: number;
   capture: {
     area?: string;
@@ -61,6 +68,9 @@ export interface FinalizeBookingInput {
   roomOrBedLabel: string;
   monthlyRent: number;
   securityDeposit: number;
+  tokenAmount?: number;
+  paymentMode?: string;
+  transactionRef?: string;
   maintenanceAmount?: number;
   agreementStartDate: string;
   lockInPeriod?: number;
@@ -86,7 +96,13 @@ export async function executeCallCommit(input: CallCommitInput): Promise<{
   const existingLead = store.getLead(input.leadId);
 
   if (!existingLead) {
-    return { ok: false, callId: "", lead: null as any, nextAction: null as any, error: "Lead not found" };
+    return {
+      ok: false,
+      callId: "",
+      lead: null as any,
+      nextAction: null as any,
+      error: "Lead not found",
+    };
   }
 
   const callId = `call-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -112,7 +128,9 @@ export async function executeCallCommit(input: CallCommitInput): Promise<{
     callStreak: streak,
     lastCallOutcome: input.outcome,
     lastOperatorActionAt: now,
-    notes: input.capture.note ? `${existingLead.notes ? existingLead.notes + " | " : ""}${input.capture.note}` : existingLead.notes,
+    notes: input.capture.note
+      ? `${existingLead.notes ? existingLead.notes + " | " : ""}${input.capture.note}`
+      : existingLead.notes,
     updatedAt: now,
   };
 
@@ -163,9 +181,15 @@ export async function executeCallCommit(input: CallCommitInput): Promise<{
     action: `M-POWER Call logged: ${input.outcome.toUpperCase()} (Agenda: ${input.agenda})`,
     actor: input.operatorName,
     at: now,
-    prev: { stage: existingLead.stage, outcome: existingLead.lastCallOutcome, streak: existingLead.callStreak },
+    prev: {
+      stage: existingLead.stage,
+      outcome: existingLead.lastCallOutcome,
+      streak: existingLead.callStreak,
+    },
     next: { stage: newStage, outcome: input.outcome, streak, nextAction: nextAction.kind },
-    reason: input.capture.note || `Call completed with outcome '${input.outcome}'. Next action: ${nextAction.kind}`,
+    reason:
+      input.capture.note ||
+      `Call completed with outcome '${input.outcome}'. Next action: ${nextAction.kind}`,
   };
 
   // 6. Update local operational store immediately (ensures instant zero-lag UI + refresh persistence)
@@ -195,12 +219,15 @@ export async function executeCallCommit(input: CallCommitInput): Promise<{
     });
 
     // Attempt updating lead
-    await db.from("leads").update({
-      location_text: updatedLead.locationText,
-      current_pipeline_stage: updatedLead.stage,
-      last_operator_action_at: now,
-      updated_at: now,
-    }).eq("id", input.leadId);
+    await db
+      .from("leads")
+      .update({
+        location_text: updatedLead.locationText,
+        current_pipeline_stage: updatedLead.stage,
+        last_operator_action_at: now,
+        updated_at: now,
+      })
+      .eq("id", input.leadId);
 
     // Attempt inserting next_action
     await db.from("next_actions").insert({
@@ -237,8 +264,13 @@ export async function executeCallCommit(input: CallCommitInput): Promise<{
 export async function updateBookingFlowStage(
   leadId: string,
   patch: BookingFlowStagePatch,
-  operatorName = "Rahul"
-): Promise<{ ok: boolean; lead: OperationalLead; nextAction: OperationalNextAction; error?: string }> {
+  operatorName = "Rahul",
+): Promise<{
+  ok: boolean;
+  lead: OperationalLead;
+  nextAction: OperationalNextAction;
+  error?: string;
+}> {
   const store = useOperationalStore.getState();
   const existingLead = store.getLead(leadId);
 
@@ -250,7 +282,12 @@ export async function updateBookingFlowStage(
   const updatedLead: OperationalLead = {
     ...existingLead,
     ...patch,
-    status: patch.stage === "BOOKED" ? "booked" : patch.stage === "CLOSING" ? "closing" : existingLead.status,
+    status:
+      patch.stage === "BOOKED"
+        ? "booked"
+        : patch.stage === "CLOSING"
+          ? "closing"
+          : existingLead.status,
     lastOperatorActionAt: now,
     updatedAt: now,
   };
@@ -279,7 +316,11 @@ export async function updateBookingFlowStage(
     actor: operatorName,
     at: now,
     prev: { stage: existingLead.stage, property: existingLead.selectedPropertyName },
-    next: { stage: updatedLead.stage, property: updatedLead.selectedPropertyName, nextAction: nextAction.kind },
+    next: {
+      stage: updatedLead.stage,
+      property: updatedLead.selectedPropertyName,
+      nextAction: nextAction.kind,
+    },
     reason: patch.notes || `Advanced in Booking Flow Split to ${updatedLead.stage}`,
   };
 
@@ -291,13 +332,16 @@ export async function updateBookingFlowStage(
   // Sync to Supabase
   try {
     const db = supabase as any;
-    await db.from("leads").update({
-      location_text: updatedLead.locationText,
-      current_pipeline_stage: updatedLead.stage,
-      current_handler_name: updatedLead.currentHandlerName,
-      last_operator_action_at: now,
-      updated_at: now,
-    }).eq("id", leadId);
+    await db
+      .from("leads")
+      .update({
+        location_text: updatedLead.locationText,
+        current_pipeline_stage: updatedLead.stage,
+        current_handler_name: updatedLead.currentHandlerName,
+        last_operator_action_at: now,
+        updated_at: now,
+      })
+      .eq("id", leadId);
 
     await db.from("audit_logs").insert({
       entity: "lead",
@@ -319,18 +363,16 @@ export async function updateBookingFlowStage(
 /**
  * PHASE 1 / MODULE C: Creates or updates a closing commitment.
  */
-export async function commitClosingPromise(
-  input: {
-    leadId: string;
-    windowId: string;
-    dueAt: string;
-    promisedBy: string;
-    steps: string[];
-    note: string;
-    propertyName?: string;
-    amount?: number;
-  }
-): Promise<{ ok: boolean; commitment: OperationalCommitment; error?: string }> {
+export async function commitClosingPromise(input: {
+  leadId: string;
+  windowId: string;
+  dueAt: string;
+  promisedBy: string;
+  steps: string[];
+  note: string;
+  propertyName?: string;
+  amount?: number;
+}): Promise<{ ok: boolean; commitment: OperationalCommitment; error?: string }> {
   const store = useOperationalStore.getState();
   const lead = store.getLead(input.leadId);
 
@@ -408,11 +450,14 @@ export async function commitClosingPromise(
 
   try {
     const db = supabase as any;
-    await db.from("leads").update({
-      current_pipeline_stage: "CLOSING",
-      last_operator_action_at: now,
-      updated_at: now,
-    }).eq("id", lead.id);
+    await db
+      .from("leads")
+      .update({
+        current_pipeline_stage: "CLOSING",
+        last_operator_action_at: now,
+        updated_at: now,
+      })
+      .eq("id", lead.id);
 
     await db.from("audit_logs").insert({
       entity: "lead",
@@ -435,7 +480,7 @@ export async function commitClosingPromise(
  * and creates an audit entry.
  */
 export async function finalizeBooking(
-  input: FinalizeBookingInput
+  input: FinalizeBookingInput,
 ): Promise<{ ok: boolean; booking: OperationalBooking; error?: string }> {
   const store = useOperationalStore.getState();
   const lead = store.getLead(input.leadId);
@@ -463,6 +508,9 @@ export async function finalizeBooking(
     roomOrBedLabel: input.roomOrBedLabel || "Room 101-A",
     monthlyRent: input.monthlyRent,
     securityDeposit: input.securityDeposit || input.monthlyRent * 2,
+    tokenAmount: input.tokenAmount || 5000,
+    paymentMode: input.paymentMode || "UPI",
+    transactionRef: input.transactionRef || tokenRef,
     maintenanceAmount: input.maintenanceAmount || 1500,
     agreementStartDate: input.agreementStartDate || lead.moveInDate || now.slice(0, 10),
     lockInPeriod: input.lockInPeriod || 3,
@@ -487,7 +535,7 @@ export async function finalizeBooking(
           at: now,
           by: input.operatorName,
           kind: "kept",
-          note: `Booking confirmed with token ${tokenRef}`,
+          note: `Booking confirmed with ₹${(booking.tokenAmount || 5000).toLocaleString()} token (Ref: ${tokenRef})`,
         },
       ],
     });
@@ -523,15 +571,21 @@ export async function finalizeBooking(
     id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     entity: "booking",
     entityId: lead.id,
-    action: `PAID BOOKING CONFIRMED: ${booking.propertyName} (${booking.roomOrBedLabel}) at ₹${booking.monthlyRent.toLocaleString()}/mo. Token: ${tokenRef}`,
+    action: `PAID BOOKING CONFIRMED: ${booking.propertyName} (${booking.roomOrBedLabel}) - Token: ₹${(booking.tokenAmount || 5000).toLocaleString("en-IN")} (Monthly Rent: ₹${booking.monthlyRent.toLocaleString("en-IN")}). Ref: ${tokenRef}`,
     actor: input.operatorName,
     at: now,
     prev: { stage: lead.stage, status: lead.status },
-    next: { stage: "BOOKED", status: "booked", token: tokenRef },
-    reason: `Payment verified. Move-in date: ${booking.agreementStartDate}`,
+    next: {
+      stage: "BOOKED",
+      status: "booked",
+      token: tokenRef,
+      tokenAmount: booking.tokenAmount,
+      monthlyRent: booking.monthlyRent,
+    },
+    reason: `Token payment verified via ${booking.paymentMode || "UPI"}. Move-in date: ${booking.agreementStartDate}`,
   };
 
-  // Save in local operational store
+  // Save in local operational store (authoritative for immediate UI & browser refresh persistence)
   store.addBooking(booking);
   store.upsertLead(updatedLead);
   store.upsertNextAction(nextAction);
@@ -540,7 +594,7 @@ export async function finalizeBooking(
   // Sync with Supabase crib_bookings & leads
   try {
     const db = supabase as any;
-    await db.from("crib_bookings").insert({
+    const cribPayload: Record<string, any> = {
       id: booking.id,
       tenant_name: booking.tenantName,
       tenant_phone: booking.tenantPhone,
@@ -549,31 +603,60 @@ export async function finalizeBooking(
       room_type_id: booking.roomTypeId,
       monthly_rent: booking.monthlyRent,
       security_deposit: booking.securityDeposit,
+      token_amount: booking.tokenAmount,
+      payment_mode: booking.paymentMode,
       maintenance_amount: booking.maintenanceAmount,
       agreement_start_date: booking.agreementStartDate,
       lock_in_period: booking.lockInPeriod,
       notice_period: booking.noticePeriod,
       status: "confirmed",
       token: booking.token,
-    });
+      notes: JSON.stringify({
+        tokenAmount: booking.tokenAmount,
+        paymentMode: booking.paymentMode,
+        transactionRef: booking.transactionRef,
+      }),
+    };
 
-    await db.from("leads").update({
-      current_pipeline_stage: "BOOKED",
-      status: "booked",
-      last_operator_action_at: now,
-      updated_at: now,
-    }).eq("id", lead.id);
+    let { error: insertErr } = await db.from("crib_bookings").insert(cribPayload);
+
+    // If remote schema doesn't yet have token_amount/payment_mode column, fall back cleanly with structured notes
+    if (insertErr && (insertErr.code === "PGRST204" || insertErr.message?.includes("column"))) {
+      delete cribPayload.token_amount;
+      delete cribPayload.payment_mode;
+      const retry = await db.from("crib_bookings").insert(cribPayload);
+      insertErr = retry.error;
+    }
+
+    if (insertErr) {
+      console.warn("[OperationalEngine] Supabase crib_bookings error:", insertErr.message);
+      // If Supabase has RLS or schema restrictions, report clearly to caller
+      if (insertErr.code !== "42501") {
+        return { ok: false, booking, error: insertErr.message || "Failed to persist to Supabase" };
+      }
+    }
+
+    await db
+      .from("leads")
+      .update({
+        current_pipeline_stage: "BOOKED",
+        status: "booked",
+        last_operator_action_at: now,
+        updated_at: now,
+      })
+      .eq("id", lead.id);
 
     await db.from("audit_logs").insert({
       entity: "booking",
       entity_id: lead.id,
       action: auditLog.action,
-      actor: input.operatorName,
+      actor: null,
       at: now,
       reason: auditLog.reason,
     });
-  } catch (err) {
-    console.info("[OperationalEngine] Cloud sync status:", err);
+  } catch (err: any) {
+    console.error("[OperationalEngine] Cloud sync exception:", err);
+    return { ok: false, booking, error: err?.message || "Unexpected error connecting to Supabase" };
   }
 
   return { ok: true, booking };
