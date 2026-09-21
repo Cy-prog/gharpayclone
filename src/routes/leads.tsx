@@ -46,7 +46,7 @@ function LeadsPage() {
   const [q, setQ] = useState("");
   const [stage, setStage] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"confidence" | "moveIn" | "updated">("confidence");
-  const [view, setView] = useState<LeadViewMode | "mpower">("table");
+  const [view, setView] = useState<LeadViewMode | "mpower">("mpower");
   const hydrateFromSupabase = useOperationalStore((s) => s.hydrateFromSupabase);
 
   useEffect(() => {

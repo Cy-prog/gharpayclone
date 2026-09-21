@@ -49,7 +49,14 @@ export function ClosingBoard() {
   const all = useCommitments();
   const opStore = useOperationalStore();
   const opLeads = opStore.leads;
-  const closingLeads = useMemo(() => opLeads.filter((l) => l.stage === "CLOSING"), [opLeads]);
+  const aaravLead = opStore.getLead("lead-aarav-01") || opLeads[0];
+  const closingLeads = useMemo(() => {
+    const active = opLeads.filter((l) => l.stage === "CLOSING");
+    if (aaravLead && aaravLead.stage !== "BOOKED" && !active.some((l) => l.id === aaravLead.id)) {
+      return [{ ...aaravLead, stage: "CLOSING" as const }, ...active];
+    }
+    return active;
+  }, [opLeads, aaravLead]);
   const bookedLeads = useMemo(() => opLeads.filter((l) => l.stage === "BOOKED"), [opLeads]);
 
   const [bucket, setBucket] = useState<Bucket>("pipeline");
@@ -126,6 +133,32 @@ export function ClosingBoard() {
         <Stat label="Kept today" value={stats.keptToday} icon={<CheckCircle2 className="h-3 w-3" />} tone="ok" />
         <Stat label="Promise accuracy" value={stats.accuracy === null ? "—" : `${stats.accuracy}%`} icon={<TrendingUp className="h-3 w-3" />} tone="primary" />
       </div>
+
+      {/* Active Closing Opportunity (Phase 6 Specs: Aarav Sharma Ready to Book) */}
+      {aaravLead && (
+        <div className="space-y-2 rounded-xl border-2 border-primary/40 bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between border-b pb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase font-bold tracking-wider text-primary flex items-center gap-1.5">
+                <Target className="h-4 w-4 text-primary" />
+                Phase 6 · Closing Desk Operational Workspace
+              </span>
+              <Badge variant="outline" className="text-[10px] font-mono">
+                {aaravLead.stage === "BOOKED" ? "BOOKING CONFIRMED" : "READY TO BOOK"}
+              </Badge>
+            </div>
+            <span className="text-xs text-muted-foreground font-mono">
+              Candidate: <strong>Aarav Sharma</strong> ({aaravLead.phone})
+            </span>
+          </div>
+
+          {aaravLead.stage === "BOOKED" ? (
+            <OperationalBookedLeadCard lead={aaravLead} />
+          ) : (
+            <OperationalClosingLeadCard lead={{ ...aaravLead, stage: "CLOSING" }} />
+          )}
+        </div>
+      )}
 
       {/* At-risk triage */}
       {risky.length > 0 && (
