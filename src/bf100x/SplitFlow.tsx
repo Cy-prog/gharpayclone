@@ -276,6 +276,12 @@ export function SplitFlow({ embedded = false, focus, panelOnly = false }: { embe
         </div>
       </header>
 
+      {/* Module Outcome Guarantee */}
+      <div className="shrink-0 border-b border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary flex items-center justify-between">
+        <span><strong className="font-semibold">Module Outcome:</strong> Move a qualified customer from property matching toward a scheduled tour/booking.</span>
+        <span className="text-[10px] text-muted-foreground font-mono">BOOKING FLOW SPLIT</span>
+      </div>
+
       {/* Customer line + the five answers, compact */}
       {lead && (
         <div className="shrink-0 border-b px-2 py-1 space-y-1.5">
@@ -306,14 +312,31 @@ export function SplitFlow({ embedded = false, focus, panelOnly = false }: { embe
             </div>
           )}
 
-          {/* Operational Next Best Action Banner */}
+          {/* Operational Next Best Action Banner & Accountability */}
           {currentNba && (
-            <div className="rounded border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] space-y-0.5">
-              <div className="flex items-center justify-between font-semibold text-primary">
-                <span>NEXT ACTION: {currentNba.kind}</span>
-                <span className="text-[10px] font-normal text-muted-foreground">
-                  Due: {new Date(currentNba.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · Owner: {currentNba.owner}
-                </span>
+            <div className={cn(
+              "rounded border px-2 py-1 text-[11px] space-y-0.5",
+              (new Date(currentNba.dueAt).getTime() < Date.now() || h?.sla === "LATE")
+                ? "border-destructive/50 bg-destructive/10"
+                : "border-primary/30 bg-primary/5"
+            )}>
+              <div className="flex items-center justify-between font-semibold">
+                <div className="flex items-center gap-1.5">
+                  <span className={cn((new Date(currentNba.dueAt).getTime() < Date.now() || h?.sla === "LATE") ? "text-destructive font-bold" : "text-primary")}>
+                    NEXT ACTION: {currentNba.kind}
+                  </span>
+                  {(new Date(currentNba.dueAt).getTime() < Date.now() || h?.sla === "LATE") && (
+                    <Badge variant="destructive" className="h-4 px-1 text-[9px] font-bold animate-pulse">
+                      OVERDUE
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 text-[10px]">
+                  <span className={cn((new Date(currentNba.dueAt).getTime() < Date.now() || h?.sla === "LATE") ? "text-destructive font-bold" : "text-muted-foreground")}>
+                    Due: {new Date(currentNba.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  <span className="text-muted-foreground">· Owner: <strong className="text-foreground">{currentNba.owner || "Samit Jain"}</strong></span>
+                </div>
               </div>
               <div className="text-[10px] text-muted-foreground leading-tight">{currentNba.reason}</div>
             </div>

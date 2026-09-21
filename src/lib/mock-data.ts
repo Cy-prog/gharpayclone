@@ -46,6 +46,12 @@ export const PROPERTIES: Property[] = [
 /*    tcm-4 Neha (hot streak):  back-to-back high-confidence tours      */
 /* ------------------------------------------------------------------ */
 const CORE_LEADS: Lead[] = [
+  /* ====== Demo Candidate Lead ====== */
+  { id: "lead-aarav-01", name: "Aarav Sharma", phone: "+91 98765 43210", source: "Direct / WhatsApp",
+    budget: 15000, moveInDate: iso(addDays(now, 5)), preferredArea: "Koramangala 4th Block",
+    assignedTcmId: "tcm-1", stage: "claimed", intent: "hot", confidence: 92,
+    tags: ["urgent", "budget-match", "ready-to-close"], nextFollowUpAt: iso(addMinutes(now, 15)), responseSpeedMins: 2,
+    createdAt: iso(addDays(now, -1)), updatedAt: iso(now) },
   /* ====== tcm-1 Aarav · Koramangala · closer ====== */
   { id: "l-1", name: "Karthik R.", phone: "+91 98xxx 12345", source: "Instagram",
     budget: 14000, moveInDate: iso(addDays(now, 3)), preferredArea: "Koramangala",

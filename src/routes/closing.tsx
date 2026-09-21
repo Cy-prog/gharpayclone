@@ -46,6 +46,12 @@ function ClosingPage() {
           </p>
         </header>
 
+        {/* Module Outcome Guarantee */}
+        <div className="rounded border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary flex items-center justify-between">
+          <span><strong className="font-semibold">Module Outcome:</strong> Turn a post-tour customer decision into a confirmed booking and payment record.</span>
+          <span className="text-[10px] text-muted-foreground font-mono">CLOSING DESK</span>
+        </div>
+
         <RoleGuaranteePanel role="closing" />
 
         <ClientOnly fallback={<p className="py-10 text-center text-sm text-muted-foreground">Loading closing mission…</p>}>

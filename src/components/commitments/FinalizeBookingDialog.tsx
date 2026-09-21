@@ -171,8 +171,7 @@ export function FinalizeBookingDialog({ lead, open, onOpenChange, onSuccess }: P
               <DialogDescription className="text-xs">
                 Finalize payment commitment for{" "}
                 <span className="font-semibold text-foreground">{lead.name}</span> ({lead.phone}).
-                This will record separate token vs monthly rent fields, persist to Supabase, and
-                transition the customer to BOOKED.
+                This records the advance token payment, allocates room inventory, and confirms booking.
               </DialogDescription>
             </DialogHeader>
 
@@ -204,12 +203,12 @@ export function FinalizeBookingDialog({ lead, open, onOpenChange, onSuccess }: P
                 </div>
               </div>
 
-              {/* Booking Amount Separation: Token vs Monthly Rent */}
+              {/* Booking Financial Structure */}
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 space-y-2">
                 <div className="flex items-center justify-between text-[11px] font-semibold text-primary">
-                  <span>Booking Amount Structure</span>
-                  <Badge variant="outline" className="text-[10px] bg-background">
-                    ₹5,000 Token vs Monthly Rent
+                  <span>Financial Breakdown</span>
+                  <Badge variant="outline" className="text-[10px] bg-background text-emerald-700">
+                    Advance Token Deposit
                   </Badge>
                 </div>
 

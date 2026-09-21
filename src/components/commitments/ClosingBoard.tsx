@@ -601,16 +601,28 @@ function OperationalClosingLeadCard({ lead }: { lead: OperationalLead }) {
         </div>
       </div>
 
-      {/* Next Best Action Banner */}
+      {/* Next Best Action Banner & Accountability */}
       {nba && (
-        <div className="rounded border border-primary/30 bg-primary/5 p-2 text-xs flex items-center justify-between">
+        <div className={cn(
+          "rounded border p-2 text-xs flex items-center justify-between",
+          new Date(nba.dueAt).getTime() < Date.now() ? "border-destructive/50 bg-destructive/10" : "border-primary/30 bg-primary/5"
+        )}>
           <div>
-            <span className="font-semibold text-primary">Next Action: {nba.kind}</span>
+            <div className="flex items-center gap-1.5">
+              <span className={cn("font-semibold", new Date(nba.dueAt).getTime() < Date.now() ? "text-destructive font-bold" : "text-primary")}>
+                Next Action: {nba.kind}
+              </span>
+              {new Date(nba.dueAt).getTime() < Date.now() && (
+                <Badge variant="destructive" className="h-4 px-1 text-[9px] font-bold animate-pulse">
+                  OVERDUE
+                </Badge>
+              )}
+            </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">{nba.reason}</p>
           </div>
           <div className="text-right text-[10px] text-muted-foreground shrink-0 ml-2">
-            <div>Owner: <span className="font-medium text-foreground">{nba.owner}</span></div>
-            <div>Due: <span className="font-medium text-foreground">{new Date(nba.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>
+            <div>Owner: <span className="font-medium text-foreground">{nba.owner || "Samit Jain"}</span></div>
+            <div>Due: <span className={cn("font-medium", new Date(nba.dueAt).getTime() < Date.now() ? "text-destructive font-bold" : "text-foreground")}>{new Date(nba.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>
           </div>
         </div>
       )}
@@ -720,14 +732,26 @@ function OperationalBookedLeadCard({ lead }: { lead: OperationalLead }) {
       </div>
 
       {nba && (
-        <div className="rounded border border-emerald-500/30 bg-emerald-500/5 p-2 text-xs flex items-center justify-between">
+        <div className={cn(
+          "rounded border p-2 text-xs flex items-center justify-between",
+          new Date(nba.dueAt).getTime() < Date.now() ? "border-destructive/50 bg-destructive/10" : "border-emerald-500/30 bg-emerald-500/5"
+        )}>
           <div>
-            <span className="font-semibold text-emerald-700 dark:text-emerald-400">Next Action: {nba.kind}</span>
+            <div className="flex items-center gap-1.5">
+              <span className={cn("font-semibold", new Date(nba.dueAt).getTime() < Date.now() ? "text-destructive font-bold" : "text-emerald-700 dark:text-emerald-400")}>
+                Next Action: {nba.kind}
+              </span>
+              {new Date(nba.dueAt).getTime() < Date.now() && (
+                <Badge variant="destructive" className="h-4 px-1 text-[9px] font-bold animate-pulse">
+                  OVERDUE
+                </Badge>
+              )}
+            </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">{nba.reason}</p>
           </div>
           <div className="text-right text-[10px] text-muted-foreground shrink-0 ml-2">
-            <div>Owner: <span className="font-medium text-foreground">{nba.owner}</span></div>
-            <div>Due: <span className="font-medium text-foreground">{new Date(nba.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>
+            <div>Owner: <span className="font-medium text-foreground">{nba.owner || "Samit Jain"}</span></div>
+            <div>Due: <span className={cn("font-medium", new Date(nba.dueAt).getTime() < Date.now() ? "text-destructive font-bold" : "text-foreground")}>{new Date(nba.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>
           </div>
         </div>
       )}

@@ -17,6 +17,7 @@ import { pushCallRecord } from "./sync";
 import { executeCallCommit } from "@/lib/operational-engine/actions";
 import { useOperationalStore } from "@/lib/operational-engine/store";
 import { computeNextBestAction } from "@/lib/operational-engine/next-best-action";
+import { CustomerAuditHistory } from "@/components/common/CustomerAuditHistory";
 import type { OperationalLead } from "@/lib/operational-engine/types";
 import {
   ACTIVITIES, AGENDAS, DISLIKE_REASONS, MOVEMENT_LABEL, OUTCOMES, PRICE_REACTIONS, PROMISES, REACTIONS,
@@ -61,8 +62,8 @@ export function CallEngine({ lead, onLogged }: Props) {
         sharingType: "Single",
         moveInDate: lead.q?.moveInDate || new Date().toISOString().slice(0, 10),
         stage: "WHERE",
-        currentOwner: mv.actor.name || "Rahul",
-        currentHandlerName: mv.actor.name || "Rahul",
+        currentOwner: mv.actor.name || "Samit Jain",
+        currentHandlerName: mv.actor.name || "Samit Jain",
         status: "open",
         priority: "high",
         lastOperatorActionAt: new Date().toISOString(),
@@ -73,6 +74,7 @@ export function CallEngine({ lead, onLogged }: Props) {
   }, [operationalStore, lead, mv.actor.name]);
 
   const nba = useMemo(() => computeNextBestAction(opLead), [opLead]);
+  const isOverdue = useMemo(() => new Date(nba.dueAt).getTime() < Date.now(), [nba.dueAt]);
 
   const suggestion = useMemo(() => suggestAgenda(lead), [lead]);
   const [agenda, setAgenda] = useState<AgendaKey>(suggestion.agenda);
@@ -85,6 +87,7 @@ export function CallEngine({ lead, onLogged }: Props) {
   const [nowText, setNowText] = useState("");
   const [followText, setFollowText] = useState("");
   const [isCommitting, setIsCommitting] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
 
   const facts = useMemo(() => knownFacts(lead), [lead]);
   const def = agendaDef(agenda);
@@ -253,6 +256,12 @@ export function CallEngine({ lead, onLogged }: Props) {
 
   return (
     <div className="space-y-3 rounded-lg border p-3">
+      {/* Module Outcome Guarantee */}
+      <div className="rounded border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary flex items-center justify-between">
+        <span><strong className="font-semibold">Module Outcome:</strong> Qualify the customer and create the next actionable follow-up.</span>
+        <span className="text-[10px] text-muted-foreground font-mono">M-POWER CALL</span>
+      </div>
+
       {/* Fixed header — the lead's details stay visible for the whole call, never scroll away. */}
       <div className="sticky top-0 z-20 -mx-3 -mt-3 mb-1 space-y-1.5 border-b bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="flex items-center justify-between gap-2">
@@ -270,16 +279,46 @@ export function CallEngine({ lead, onLogged }: Props) {
           </div>
         </div>
 
-        {/* Operational Next Best Action Intelligence */}
-        <div className="rounded border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-[11px] space-y-0.5">
-          <div className="flex items-center justify-between font-semibold text-primary">
-            <span>NEXT ACTION: {nba.kind}</span>
-            <span className="text-[10px] font-normal text-muted-foreground">
-              Due: {new Date(nba.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · Owner: {nba.owner}
-            </span>
+        {/* Operational Next Best Action Intelligence & Accountability */}
+        <div className={cn(
+          "rounded border px-2.5 py-1.5 text-[11px] space-y-0.5",
+          isOverdue ? "border-destructive/50 bg-destructive/10" : "border-primary/30 bg-primary/5"
+        )}>
+          <div className="flex items-center justify-between font-semibold">
+            <div className="flex items-center gap-1.5">
+              <span className={cn(isOverdue ? "text-destructive font-bold" : "text-primary")}>
+                NEXT ACTION: {nba.kind}
+              </span>
+              {isOverdue && (
+                <Badge variant="destructive" className="h-4 px-1 text-[9px] font-bold animate-pulse">
+                  OVERDUE
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-1 text-[10px]">
+              <span className={cn(isOverdue ? "text-destructive font-bold" : "text-muted-foreground")}>
+                Due: {new Date(nba.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+              <span className="text-muted-foreground">· Owner: <strong className="text-foreground">{nba.owner || "Samit Jain"}</strong></span>
+            </div>
           </div>
           <div className="text-[10px] text-muted-foreground leading-tight">{nba.reason}</div>
         </div>
+
+        <div className="flex items-center justify-between pt-0.5">
+          <button
+            type="button"
+            onClick={() => setShowAudit((v) => !v)}
+            className="text-[10px] font-medium text-primary hover:underline"
+          >
+            {showAudit ? "▲ Hide Audit Trail" : "▼ View Cross-Module Audit Trail"}
+          </button>
+        </div>
+        {showAudit && (
+          <div className="pt-1 border-t max-h-48 overflow-y-auto">
+            <CustomerAuditHistory leadId={opLead.id} />
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
           {facts.map((f) => (
